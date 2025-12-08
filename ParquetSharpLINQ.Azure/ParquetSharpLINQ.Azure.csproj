@@ -5,6 +5,23 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
+        
+        <!-- NuGet Package Metadata -->
+        <PackageId>ParquetSharpLINQ.Azure</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Kornél Naszály</Authors>
+        <Company>Kornél Naszály</Company>
+        <Description>Azure Blob Storage support for ParquetSharpLINQ with Delta Lake. Stream Parquet and Delta Lake tables directly from Azure without downloading to disk, with automatic caching and the same LINQ query capabilities including Delta transaction log support.</Description>
+        <PackageProjectUrl>https://github.com/naszly/ParquetSharpLINQ</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/naszly/ParquetSharpLINQ</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>parquet;linq;azure;blob-storage;cloud;streaming;hive;delta-lake;delta</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReleaseNotes>Initial release with Azure Blob Storage streaming support, Delta Lake support, and in-memory caching.</PackageReleaseNotes>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
 
     <ItemGroup>
@@ -13,6 +30,10 @@
 
     <ItemGroup>
         <ProjectReference Include="..\ParquetSharpLINQ\ParquetSharpLINQ.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
 </Project>

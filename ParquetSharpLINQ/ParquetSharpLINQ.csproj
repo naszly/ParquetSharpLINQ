@@ -4,6 +4,23 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
+        
+        <!-- NuGet Package Metadata -->
+        <PackageId>ParquetSharpLINQ</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Kornél Naszály</Authors>
+        <Company>Kornél Naszály</Company>
+        <Description>LINQ query provider for Parquet files with Hive-style partitioning and Delta Lake support. Features automatic partition pruning, column projection, source-generated mappers, and Delta transaction log reading for high performance queries.</Description>
+        <PackageProjectUrl>https://github.com/naszly/ParquetSharpLINQ</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/naszly/ParquetSharpLINQ</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>parquet;linq;hive;partitioning;query;data;analytics;source-generator;delta-lake;delta</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReleaseNotes>Initial release with LINQ query support, Hive partitioning, Delta Lake support, source generation, and partition pruning.</PackageReleaseNotes>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="ParquetSharp" Version="21.0.0"/>
@@ -13,5 +30,8 @@
         <ProjectReference Include="..\ParquetSharpLINQ.Constants\ParquetSharpLINQ.Constants.csproj" />
         <ProjectReference Include="..\ParquetSharpLINQ.Generator\ParquetSharpLINQ.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
         <ProjectReference Include="..\ParquetSharpLINQ.Common\ParquetSharpLINQ.Common.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="..\README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 </Project>
