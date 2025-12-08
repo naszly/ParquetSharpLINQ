@@ -1,0 +1,131 @@
+using System.Collections;
+using System.Linq.Expressions;
+
+namespace ParquetSharpLINQ;
+
+internal sealed class HiveParquetQueryProvider<T> : IQueryProvider where T : new()
+{
+    private readonly HiveParquetTable<T> _table;
+
+    internal HiveParquetQueryProvider(HiveParquetTable<T> table)
+    {
+        _table = table ?? throw new ArgumentNullException(nameof(table));
+    }
+
+    public IQueryable CreateQuery(Expression expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        var elementType = GetElementType(expression.Type);
+        var queryableType = typeof(HiveParquetQueryable<>).MakeGenericType(elementType);
+        return (IQueryable)Activator.CreateInstance(queryableType, this, expression)!;
+    }
+
+    public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        return new HiveParquetQueryable<TElement>(this, expression);
+    }
+
+    public object? Execute(Expression expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        return Execute<object?>(expression);
+    }
+
+    public TResult Execute<TResult>(Expression expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        // Analyze the query to extract optimization hints
+        var analysis = QueryAnalyzer.Analyze(expression);
+
+        // Get optimized enumerable with partition pruning and column projection
+        var sourceQueryable = _table.AsEnumerable(
+            analysis.PartitionFilters.Count > 0 ? analysis.PartitionFilters : null,
+            analysis.RequestedColumns.Count > 0 ? analysis.RequestedColumns : null
+        ).AsQueryable();
+
+        var rewritten = HiveParquetExpressionReplacer<T>.Replace(expression, _table, sourceQueryable);
+        return sourceQueryable.Provider.Execute<TResult>(rewritten);
+    }
+
+    private static Type GetElementType(Type sequenceType)
+    {
+        if (sequenceType.IsGenericType)
+        {
+            var definition = sequenceType.GetGenericTypeDefinition();
+            if (definition == typeof(IQueryable<>) || definition == typeof(IEnumerable<>))
+                return sequenceType.GetGenericArguments()[0];
+        }
+
+        var interfaceType = sequenceType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && (i.GetGenericTypeDefinition() == typeof(IQueryable<>) ||
+                                                     i.GetGenericTypeDefinition() == typeof(IEnumerable<>)));
+
+        if (interfaceType != null)
+            return interfaceType.GetGenericArguments()[0];
+
+        throw new ArgumentException("Expression does not represent a queryable sequence.", nameof(sequenceType));
+    }
+}
+
+internal sealed class HiveParquetQueryable<TElement> : IOrderedQueryable<TElement>
+{
+    public HiveParquetQueryable(IQueryProvider provider, Expression expression)
+    {
+        Provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        Expression = expression ?? throw new ArgumentNullException(nameof(expression));
+
+        var type = expression.Type;
+        if (!typeof(IQueryable<TElement>).IsAssignableFrom(type) &&
+            !typeof(IEnumerable<TElement>).IsAssignableFrom(type))
+            throw new ArgumentOutOfRangeException(nameof(expression),
+                "Expression must represent a sequence of the requested element type.");
+    }
+
+    public Type ElementType => typeof(TElement);
+
+    public Expression Expression { get; }
+
+    public IQueryProvider Provider { get; }
+
+    public IEnumerator<TElement> GetEnumerator()
+    {
+        var result = Provider.Execute<IEnumerable<TElement>>(Expression);
+        return result.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+}
+
+internal sealed class HiveParquetExpressionReplacer<TRoot> : ExpressionVisitor where TRoot : new()
+{
+    private readonly IQueryable _replacement;
+    private readonly object _target;
+
+    private HiveParquetExpressionReplacer(object target, IQueryable replacement)
+    {
+        _target = target;
+        _replacement = replacement;
+    }
+
+    public static Expression Replace(Expression expression, object target, IQueryable replacement)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(replacement);
+
+        return new HiveParquetExpressionReplacer<TRoot>(target, replacement).Visit(expression);
+    }
+
+    protected override Expression VisitConstant(ConstantExpression node)
+    {
+        if (node.Value == _target) return Expression.Constant(_replacement, _replacement.GetType());
+
+        return base.VisitConstant(node);
+    }
+}
