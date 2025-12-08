@@ -35,32 +35,24 @@ internal static class ParquetColumnReader
 
     /// <summary>
     /// Reads typed column data from a column reader.
+    /// Uses reflection to call the generic LogicalReader method with the correct type.
     /// </summary>
     private static Array ReadColumnData(ColumnReader columnReader, Type targetType, int numRows)
     {
-        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        var logicalReaderMethod = typeof(ColumnReader)
+            .GetMethods()
+            .Single(m => m.Name == nameof(ColumnReader.LogicalReader) 
+                         && m.IsGenericMethodDefinition 
+                         && m.GetParameters().Length == 1
+                         && m.GetParameters()[0].ParameterType == typeof(int))
+            .MakeGenericMethod(targetType);
+        const int bufferLength = 4096;
+        var logicalReader = logicalReaderMethod.Invoke(columnReader, [bufferLength]);
+        
+        var readAllMethod = logicalReader!.GetType().GetMethod(nameof(LogicalColumnReader<>.ReadAll))!;
+        var result = readAllMethod.Invoke(logicalReader, [numRows]);
 
-        return underlyingType switch
-        {
-            _ when underlyingType == typeof(bool) => columnReader.LogicalReader<bool>().ReadAll(numRows),
-            _ when underlyingType == typeof(sbyte) => columnReader.LogicalReader<sbyte>().ReadAll(numRows),
-            _ when underlyingType == typeof(byte) => columnReader.LogicalReader<byte>().ReadAll(numRows),
-            _ when underlyingType == typeof(short) => columnReader.LogicalReader<short>().ReadAll(numRows),
-            _ when underlyingType == typeof(ushort) => columnReader.LogicalReader<ushort>().ReadAll(numRows),
-            _ when underlyingType == typeof(int) => columnReader.LogicalReader<int>().ReadAll(numRows),
-            _ when underlyingType == typeof(uint) => columnReader.LogicalReader<uint>().ReadAll(numRows),
-            _ when underlyingType == typeof(long) => columnReader.LogicalReader<long>().ReadAll(numRows),
-            _ when underlyingType == typeof(ulong) => columnReader.LogicalReader<ulong>().ReadAll(numRows),
-            _ when underlyingType == typeof(float) => columnReader.LogicalReader<float>().ReadAll(numRows),
-            _ when underlyingType == typeof(double) => columnReader.LogicalReader<double>().ReadAll(numRows),
-            _ when underlyingType == typeof(decimal) => columnReader.LogicalReader<decimal>().ReadAll(numRows),
-            _ when underlyingType == typeof(string) => columnReader.LogicalReader<string>().ReadAll(numRows),
-            _ when underlyingType == typeof(DateTime) => columnReader.LogicalReader<DateTime>().ReadAll(numRows),
-            _ when underlyingType == typeof(DateOnly) => columnReader.LogicalReader<DateOnly>().ReadAll(numRows),
-            _ when underlyingType == typeof(TimeSpan) => columnReader.LogicalReader<TimeSpan>().ReadAll(numRows),
-            _ when underlyingType == typeof(byte[]) => columnReader.LogicalReader<byte[]>().ReadAll(numRows),
-            _ => throw new NotSupportedException($"Reading type {targetType} is not supported. {SupportedTypesMessage}")
-        };
+        return (Array)result!;
     }
 
     /// <summary>
@@ -88,4 +80,3 @@ internal static class ParquetColumnReader
         return result;
     }
 }
-
