@@ -1,5 +1,9 @@
 # ParquetSharpLINQ.Azure
 
+[![NuGet](https://img.shields.io/nuget/v/ParquetSharpLINQ.Azure.svg)](https://www.nuget.org/packages/ParquetSharpLINQ.Azure)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/ParquetSharpLINQ.Azure.svg)](https://www.nuget.org/packages/ParquetSharpLINQ.Azure)
+![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-blue)
+
 Azure Blob Storage support for ParquetSharpLINQ with Delta Lake.
 
 ## Overview
