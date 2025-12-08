@@ -19,7 +19,16 @@ jobs:
     
     - name: Extract version from tag
       id: get_version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        
+        # Check if this is a pre-release (contains - followed by alpha, beta, rc, etc.)
+        if [[ "$VERSION" =~ - ]]; then
+          echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+        else
+          echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+        fi
     
     - name: Restore dependencies
       run: dotnet restore
@@ -68,7 +77,7 @@ jobs:
           nupkg/*.snupkg
         generate_release_notes: true
         draft: false
-        prerelease: false
+        prerelease: ${{ steps.get_version.outputs.IS_PRERELEASE }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

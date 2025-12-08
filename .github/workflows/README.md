@@ -102,19 +102,50 @@ Use [Semantic Versioning](https://semver.org/):
 
 ### Pre-release Versions
 
-For pre-release versions, use suffixes:
+The workflow **automatically detects** pre-release versions based on the tag format and marks them appropriately.
+
+**Supported pre-release formats:**
 
 ```bash
-# Beta release
+# Alpha releases (early development)
+git tag v1.0.0-alpha.1
+git push origin v1.0.0-alpha.1
+
+# Beta releases (feature complete, testing)
 git tag v1.0.0-beta.1
 git push origin v1.0.0-beta.1
 
-# Release candidate
+# Release candidates (final testing)
 git tag v1.0.0-rc.1
 git push origin v1.0.0-rc.1
+
+# Custom pre-release identifiers
+git tag v2.0.0-preview.1
+git push origin v2.0.0-preview.1
 ```
 
-Note: Update the `release.yml` workflow if you want to mark pre-releases differently.
+**What happens with pre-releases:**
+- ✅ Published to NuGet.org (users can opt-in with `--prerelease` flag)
+- ✅ Marked as "Pre-release" on GitHub (shows orange tag instead of green)
+- ✅ Not shown as "Latest" release on GitHub
+- ✅ Package version matches tag: `1.0.0-beta.1`
+
+**NuGet pre-release behavior:**
+
+```bash
+# Stable releases only (default)
+dotnet add package ParquetSharpLINQ
+
+# Include pre-releases
+dotnet add package ParquetSharpLINQ --prerelease
+
+# Specific pre-release version
+dotnet add package ParquetSharpLINQ --version 1.0.0-beta.1
+```
+
+**Detection logic:**
+- Any version with a hyphen (`-`) followed by text is considered a pre-release
+- Examples: `1.0.0-alpha`, `1.0.0-beta.1`, `2.0.0-rc.2`, `1.5.0-preview`
 
 ## Workflow Features
 
