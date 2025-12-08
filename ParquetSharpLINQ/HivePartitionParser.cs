@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-
-namespace ParquetSharpLINQ.Common;
+namespace ParquetSharpLINQ;
 
 /// <summary>
 /// Utility for parsing Hive-style partition paths (e.g., "year=2024/month=06").

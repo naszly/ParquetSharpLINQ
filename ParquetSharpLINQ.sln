@@ -10,8 +10,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParquetSharpLINQ.DataGenera
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParquetSharpLINQ.Benchmarks", "ParquetSharpLINQ.Benchmarks\ParquetSharpLINQ.Benchmarks.csproj", "{6A388B1B-FB88-436E-B812-B8C2069B45AA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParquetSharpLINQ.Common", "ParquetSharpLINQ.Common\ParquetSharpLINQ.Common.csproj", "{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParquetSharpLINQ.Azure", "ParquetSharpLINQ.Azure\ParquetSharpLINQ.Azure.csproj", "{AAB4FEBF-D42C-4E2F-85B1-84124B38DDF5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParquetSharpLINQ.Constants", "ParquetSharpLINQ.Constants\ParquetSharpLINQ.Constants.csproj", "{D8A112AA-61CD-4D95-AE06-462D5C06C658}"
@@ -86,18 +84,6 @@ Global
 		{6A388B1B-FB88-436E-B812-B8C2069B45AA}.Release|x64.Build.0 = Release|Any CPU
 		{6A388B1B-FB88-436E-B812-B8C2069B45AA}.Release|x86.ActiveCfg = Release|Any CPU
 		{6A388B1B-FB88-436E-B812-B8C2069B45AA}.Release|x86.Build.0 = Release|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Debug|x64.Build.0 = Debug|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Debug|x86.Build.0 = Debug|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Release|x64.ActiveCfg = Release|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Release|x64.Build.0 = Release|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Release|x86.ActiveCfg = Release|Any CPU
-		{2F3AAB1E-E69C-46B1-8AAE-FCC387F2C7B0}.Release|x86.Build.0 = Release|Any CPU
 		{AAB4FEBF-D42C-4E2F-85B1-84124B38DDF5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{AAB4FEBF-D42C-4E2F-85B1-84124B38DDF5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AAB4FEBF-D42C-4E2F-85B1-84124B38DDF5}.Debug|x64.ActiveCfg = Debug|Any CPU

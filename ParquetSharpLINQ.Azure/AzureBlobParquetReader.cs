@@ -1,6 +1,5 @@
 using Azure.Storage.Blobs;
 using ParquetSharp;
-using ParquetSharpLINQ.Common;
 using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Azure;

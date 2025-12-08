@@ -1,5 +1,3 @@
-using ParquetSharpLINQ.Common;
-
 namespace ParquetSharpLINQ.Attributes;
 
 [AttributeUsage(AttributeTargets.Property)]
