@@ -12,7 +12,11 @@ namespace ParquetSharpLINQ.Azure;
 /// </summary>
 public sealed class AzureBlobParquetReader : IParquetReader, IDisposable
 {
+#if NET9_0_OR_GREATER
     private readonly Lock _streamCacheLock = new();
+#else
+    private readonly object _streamCacheLock = new();
+#endif
     private readonly BlobContainerClient _containerClient;
     private readonly Dictionary<string, byte[]> _streamCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _cacheAccessOrder = new();
