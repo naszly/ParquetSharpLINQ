@@ -323,6 +323,31 @@ See [ParquetSharpLINQ.Benchmarks/README.md](ParquetSharpLINQ.Benchmarks/README.m
 - **[ParquetSharpLINQ.Azure/README.md](ParquetSharpLINQ.Azure/README.md)** - Azure Blob Storage support
 - **[ParquetSharpLINQ.Benchmarks/README.md](ParquetSharpLINQ.Benchmarks/README.md)** - Performance benchmarks
 - **[ParquetSharpLINQ.Tests/README.md](ParquetSharpLINQ.Tests/README.md)** - Test suite guide
+- **[.github/workflows/README.md](.github/workflows/README.md)** - CI/CD and release process
+
+## CI/CD
+
+This project uses GitHub Actions for automated testing and releases:
+
+- **Build & Test** - Runs on every push and PR
+- **Integration Tests** - Includes Delta Lake and Azure tests with Azurite
+- **Release** - Automatic NuGet publishing on version tags
+
+### Quick Release
+
+```bash
+# Create and push a version tag
+git tag v1.0.0
+git push origin v1.0.0
+
+# GitHub Actions will automatically:
+# 1. Build and test
+# 2. Create NuGet packages
+# 3. Publish to NuGet.org
+# 4. Create GitHub Release
+```
+
+See [.github/workflows/README.md](.github/workflows/README.md) for complete CI/CD documentation.
 
 ## Requirements
 
