@@ -11,4 +11,10 @@ public sealed class Partition
     ///     Hive-style partition key -> value pairs (e.g. year -> 2024, country -> US).
     /// </summary>
     public IReadOnlyDictionary<string, string> Values { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>
+    ///     Optional: Explicit list of files to read (used by Delta Lake).
+    ///     If null, all parquet files in Path will be enumerated (Hive-style).
+    /// </summary>
+    public IReadOnlyList<string>? Files { get; init; }
 }

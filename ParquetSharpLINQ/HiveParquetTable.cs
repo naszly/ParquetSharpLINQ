@@ -105,19 +105,24 @@ public class HiveParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : n
             }
 
             foreach (var partition in partitions)
-            foreach (var file in _reader.ListFiles(partition.Path))
             {
-                var availableColumnNames = _reader.GetColumns(file)
-                    .Select(column => column.Name)
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .ToList();
-
-                var columnsToRead = ResolveColumnsToRead(activeMapper, availableColumnNames, columns);
-
-                foreach (var row in _reader.ReadRows(file, columnsToRead))
+                // Use explicit file list if available (Delta Lake), otherwise enumerate directory (Hive)
+                var filesToRead = partition.Files ?? _reader.ListFiles(partition.Path);
+                
+                foreach (var file in filesToRead)
                 {
-                    var enrichedRow = EnrichWithPartitionValues(row, partition.Values);
-                    yield return activeMapper.Map(enrichedRow);
+                    var availableColumnNames = _reader.GetColumns(file)
+                        .Select(column => column.Name)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .ToList();
+
+                    var columnsToRead = ResolveColumnsToRead(activeMapper, availableColumnNames, columns);
+
+                    foreach (var row in _reader.ReadRows(file, columnsToRead))
+                    {
+                        var enrichedRow = EnrichWithPartitionValues(row, partition.Values);
+                        yield return activeMapper.Map(enrichedRow);
+                    }
                 }
             }
         }
