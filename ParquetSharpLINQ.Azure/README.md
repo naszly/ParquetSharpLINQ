@@ -1,15 +1,15 @@
 # ParquetSharpLINQ.Azure
 
-Azure Blob Storage support for ParquetSharpLINQ.
+Azure Blob Storage support for ParquetSharpLINQ with Delta Lake.
 
 ## Overview
 
-This library extends ParquetSharpLINQ with Azure Blob Storage streaming capabilities, allowing you to query Parquet
-files in Azure without downloading them to disk.
+This library extends ParquetSharpLINQ with Azure Blob Storage streaming capabilities, allowing you to query Parquet and Delta Lake tables in Azure without downloading them to disk.
 
 ## Features
 
 - ✅ Stream Parquet files directly from Azure Blob Storage
+- ✅ **Delta Lake Support** - Automatic Delta transaction log reading from Azure
 - ✅ Zero disk I/O - all data cached in memory
 - ✅ Same LINQ API as local files
 - ✅ Partition pruning works seamlessly
@@ -18,6 +18,7 @@ files in Azure without downloading them to disk.
 
 ## Quick Start
 
+**Hive-style Parquet Files:**
 ```csharp
 using ParquetSharpLINQ.Azure;
 
@@ -36,11 +37,28 @@ var results = table
     .ToList();
 ```
 
+**Delta Lake Tables:**
+```csharp
+using ParquetSharpLINQ.Azure;
+
+// Delta Lake tables work automatically - just point to the container
+using var deltaTable = new AzureHiveParquetTable<SalesRecord>(
+    connectionString: connectionString,
+    containerName: "delta-sales"  // Container with _delta_log/ prefix
+);
+
+// Delta transaction log is read automatically from Azure
+// Only active files (after updates/deletes) are queried
+var results = deltaTable
+    .Where(s => s.Year == 2024)
+    .ToList();
+```
+
 ## Classes
 
 ### AzureHiveParquetTable<T>
 
-Convenience wrapper for querying Azure Blob Storage with Hive-style partitioning.
+Convenience wrapper for querying Azure Blob Storage with Hive-style partitioning and Delta Lake support.
 
 ```csharp
 // With connection string
@@ -49,6 +67,11 @@ var table = new AzureHiveParquetTable<T>(connectionString, containerName);
 // With existing BlobContainerClient
 var table = new AzureHiveParquetTable<T>(containerClient);
 ```
+
+**Delta Lake Support:**
+- Automatically detects `_delta_log/` blobs in the container
+- Reads Delta transaction logs from Azure Blob Storage
+- Only queries active files according to the Delta log
 
 ### AzureBlobParquetReader
 
@@ -61,11 +84,15 @@ var table = new HiveParquetTable<T>("", reader: reader);
 
 ### AzurePartitionDiscovery
 
-Discovers Hive-style partitions in Azure Blob Storage.
+Discovers Hive-style partitions and Delta Lake tables in Azure Blob Storage.
 
 ```csharp
 var partitions = AzurePartitionDiscovery.Discover(containerClient);
 ```
+
+**Supports:**
+- Hive-style partitioning (`year=2024/region=us-east/`)
+- Delta Lake transaction logs (`_delta_log/*.json`)
 
 ## Authentication
 
@@ -120,7 +147,7 @@ using var table = new AzureHiveParquetTable<SalesRecord>(
 
 ## Dependencies
 
-- ParquetSharpLINQ (core library)
+- ParquetSharpLINQ (core library with Delta Lake support)
 - Azure.Storage.Blobs 12.19.1+
 
 ## License

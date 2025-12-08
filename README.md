@@ -5,6 +5,7 @@ A high-performance LINQ provider for querying Hive-style partitioned Parquet fil
 ## Features
 
 ✅ **100% Source Generated** - Zero reflection overhead  
+✅ **Delta Lake Support** - Automatic Delta transaction log reading  
 ✅ **Partition Pruning** - Only scans matching partitions (up to 180x faster)  
 ✅ **Column Projection** - Only reads requested columns  
 ✅ **Clean LINQ Syntax** - Use `Count(predicate)`, `Any(predicate)`, etc. directly  
@@ -60,6 +61,18 @@ var euSales = table
     .ToList();
 ```
 
+**Delta Lake Tables:**
+```csharp
+// Delta Lake tables work automatically - just point to the Delta table directory
+using var table = new HiveParquetTable<SalesRecord>("/data/delta-sales");
+
+// Delta transaction log is read automatically
+// Only active files (after updates/deletes) are queried
+var results = table
+    .Where(s => s.Year == 2024)
+    .ToList();
+```
+
 **Azure Blob Storage:**
 ```csharp
 using ParquetSharpLINQ.Azure;
@@ -75,6 +88,12 @@ var results = table
     .Where(s => s.Year == 2024)
     .Where(s => s.Region == "us-east")
     .ToList();
+
+// Delta Lake on Azure also works automatically!
+using var deltaTable = new AzureHiveParquetTable<SalesRecord>(
+    connectionString: "DefaultEndpointsProtocol=https;AccountName=...",
+    containerName: "delta-sales"
+);
 ```
 
 ## Performance
@@ -216,6 +235,50 @@ table.Where(s => s.Region.Equals("Us-EaSt", StringComparison.OrdinalIgnoreCase))
 
 The library uses a special prefix (`\0`) for partition values that's impossible in valid Parquet column names, preventing any collision with actual data.
 
+### Delta Lake Support
+
+ParquetSharpLINQ automatically detects and reads Delta Lake tables by looking for the `_delta_log/` directory:
+
+**Features:**
+- ✅ **Automatic detection** - Just point to a Delta table directory
+- ✅ **Transaction log reading** - Reads `_delta_log/*.json` files automatically
+- ✅ **Active files only** - Only queries files that haven't been deleted/updated
+- ✅ **Partition support** - Works with both partitioned and non-partitioned Delta tables
+- ✅ **Azure support** - Delta Lake works on Azure Blob Storage too
+- ✅ **No code changes** - Same LINQ API for both Hive and Delta tables
+
+**How it works:**
+```csharp
+// Delta table structure:
+// /data/sales/
+//   _delta_log/
+//     00000000000000000000.json  <- Transaction log
+//     00000000000000000001.json
+//   year=2024/
+//     part-00000.parquet
+//     part-00001.parquet (marked as removed in log)
+
+using var table = new HiveParquetTable<SalesRecord>("/data/sales");
+
+// Automatically:
+// 1. Detects _delta_log/ directory
+// 2. Reads transaction log
+// 3. Only queries active files (excludes part-00001.parquet)
+var results = table.ToList();
+```
+
+**Supported Delta features:**
+- ✅ Add/Remove actions (updates, deletes)
+- ✅ Metadata actions (table info)
+- ✅ Protocol actions (Delta version)
+- ✅ Partition values from transaction log
+- ❌ Time travel (not yet supported)
+- ❌ Checkpoints (uses JSON logs only)
+
+**Fallback behavior:**
+- If no `_delta_log/` directory is found, the library falls back to regular Hive-style scanning
+- No code changes needed - works transparently with both Delta and Hive tables
+
 ## Testing
 
 ```bash
@@ -228,8 +291,11 @@ dotnet test --filter "Category=Unit"
 # Run integration tests
 dotnet test --filter "Category=Integration"
 
+# Run Delta Lake integration tests
+dotnet test --filter "Category=Integration&FullyQualifiedName~Delta"
+
 # Run Azure integration tests (requires Azurite)
-dotnet test --filter "Category=Azure"
+dotnet test --filter "FullyQualifiedName~AzureDeltaLakeIntegrationTests"
 ```
 
 
