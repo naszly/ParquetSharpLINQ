@@ -402,3 +402,11 @@ FodyWeavers.xsd
 # Benchmark data directories
 benchmark_data/
 **/benchmark_data/
+
+# Delta Lake test data
+delta_test_data/
+**/delta_test_data/
+
+# Python virtual environment for Delta tests
+**/venv/
+
