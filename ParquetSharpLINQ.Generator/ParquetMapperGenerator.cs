@@ -219,6 +219,20 @@ public class ParquetMapperGenerator : IIncrementalGenerator
         sb.AppendLine("                return (T)Enum.ToObject(underlyingType, value);");
         sb.AppendLine("            }");
         sb.AppendLine();
+        sb.AppendLine("            // Handle ParquetSharp.Date conversions");
+        sb.AppendLine("            if (value is global::ParquetSharp.Date parquetDate)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                var dateTime = parquetDate.DateTime;");
+        sb.AppendLine();
+        sb.AppendLine("                if (underlyingType == typeof(DateTime))");
+        sb.AppendLine("                    return (T)(object)dateTime;");
+        sb.AppendLine();
+        sb.AppendLine("#if NET6_0_OR_GREATER");
+        sb.AppendLine("                if (underlyingType == typeof(DateOnly))");
+        sb.AppendLine("                    return (T)(object)DateOnly.FromDateTime(dateTime);");
+        sb.AppendLine("#endif");
+        sb.AppendLine("            }");
+        sb.AppendLine();
         sb.AppendLine("#if NET6_0_OR_GREATER");
         sb.AppendLine("            if (underlyingType == typeof(DateOnly) && value is string dateOnlyStr)");
         sb.AppendLine(

@@ -283,6 +283,111 @@ public class TypeMismatchTests
             }
         }
     }
+
+    [Test]
+    public void DateProperty_WithDateLogicalType_ConvertsToDateTime()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetDateConversion_{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var filePath = Path.Combine(tempDir, "dates.parquet");
+            
+            // Write a Date column using ParquetSharp's Date type
+            using (var fileWriter = new ParquetFileWriter(filePath, [new Column<Date>("event_date")]))
+            {
+                using var rowGroup = fileWriter.AppendRowGroup();
+                using var dateWriter = rowGroup.NextColumn().LogicalWriter<Date>();
+                dateWriter.WriteBatch(new[] { new Date(2024, 12, 7) });
+            }
+
+            // Read it with an entity that has DateTime property
+            using var table = new ParquetTable<EntityWithDateTime>(tempDir);
+            var results = table.ToList();
+            
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(results[0].EventDate, Is.EqualTo(new DateTime(2024, 12, 7)));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+#if NET6_0_OR_GREATER
+    [Test]
+    public void DateProperty_WithDateLogicalType_ConvertsToDateOnly()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetDateConversion_{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var filePath = Path.Combine(tempDir, "dates.parquet");
+            
+            // Write a Date column using ParquetSharp's Date type
+            using (var fileWriter = new ParquetFileWriter(filePath, [new Column<Date>("event_date")]))
+            {
+                using var rowGroup = fileWriter.AppendRowGroup();
+                using var dateWriter = rowGroup.NextColumn().LogicalWriter<Date>();
+                dateWriter.WriteBatch(new[] { new Date(2024, 12, 7) });
+            }
+
+            // Read it with an entity that has DateOnly property
+            using var table = new ParquetTable<EntityWithDateOnly>(tempDir);
+            var results = table.ToList();
+            
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(results[0].EventDate, Is.EqualTo(new DateOnly(2024, 12, 7)));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Test]
+    public void NullableDateProperty_WithDateLogicalType_ConvertsToNullableDateOnly()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetDateConversion_{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var filePath = Path.Combine(tempDir, "nullable_dates.parquet");
+            
+            // Write a nullable Date column
+            using (var fileWriter = new ParquetFileWriter(filePath, [new Column<Date?>("event_date")]))
+            {
+                using var rowGroup = fileWriter.AppendRowGroup();
+                using var dateWriter = rowGroup.NextColumn().LogicalWriter<Date?>();
+                dateWriter.WriteBatch(new Date?[] { new Date(2024, 12, 7), null });
+            }
+
+            // Read it with an entity that has nullable DateOnly property
+            using var table = new ParquetTable<EntityWithNullableDateOnly>(tempDir);
+            var results = table.ToList();
+            
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results[0].EventDate, Is.EqualTo(new DateOnly(2024, 12, 7)));
+            Assert.That(results[1].EventDate, Is.Null);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+#endif
 }
 
 public class EntityWithByte
@@ -302,4 +407,24 @@ public class EntityWithInt
     [ParquetColumn("value")]
     public int Value { get; set; }
 }
+
+public class EntityWithDateTime
+{
+    [ParquetColumn("event_date")]
+    public DateTime EventDate { get; set; }
+}
+
+#if NET6_0_OR_GREATER
+public class EntityWithDateOnly
+{
+    [ParquetColumn("event_date")]
+    public DateOnly EventDate { get; set; }
+}
+
+public class EntityWithNullableDateOnly
+{
+    [ParquetColumn("event_date")]
+    public DateOnly? EventDate { get; set; }
+}
+#endif
 

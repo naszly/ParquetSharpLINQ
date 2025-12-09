@@ -19,7 +19,7 @@ internal static class ParquetTypeResolver
             IntLogicalType intType => ResolveIntType(intType),
             DecimalLogicalType => typeof(decimal),
             StringLogicalType => typeof(string),
-            DateLogicalType => typeof(DateOnly),
+            DateLogicalType => typeof(Date),
             TimeLogicalType => typeof(TimeSpan),
             TimestampLogicalType => typeof(DateTime),
             _ => ResolvePhysicalType(descriptor.PhysicalType)
