@@ -59,7 +59,7 @@ public static class AzurePerformanceAnalysis
 
     private static void AnalyzePartitionPruning(string connectionString, string containerName, string prefix)
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(connectionString, containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(connectionString, containerName);
 
         Console.WriteLine("Note: First query downloads files to memory cache");
         Console.WriteLine();
@@ -113,7 +113,7 @@ public static class AzurePerformanceAnalysis
         Console.WriteLine("Testing cache performance (same query run multiple times):");
         Console.WriteLine();
 
-        using var table = new AzureHiveParquetTable<SalesRecord>(connectionString, containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(connectionString, containerName);
 
         // First run - downloads and caches
         var sw = Stopwatch.StartNew();
@@ -151,7 +151,7 @@ public static class AzurePerformanceAnalysis
 
     private static void AnalyzeColumnProjection(string connectionString, string containerName, string prefix)
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(connectionString, containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(connectionString, containerName);
 
         // Full columns
         var (fullCount, fullTime) = MeasureQuery(() =>

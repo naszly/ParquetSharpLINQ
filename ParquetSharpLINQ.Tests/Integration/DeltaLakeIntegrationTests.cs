@@ -22,7 +22,7 @@ public class DeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         }
     }
 
-    protected override HiveParquetTable<T> CreateTable<T>(string tableName)
+    protected override ParquetTable<T> CreateTable<T>(string tableName)
     {
         var tablePath = Path.Combine(TestDataPath, tableName);
         
@@ -31,7 +31,7 @@ public class DeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
             Assert.Inconclusive($"Delta table '{tableName}' not found. Generate test data first.");
         }
 
-        return new HiveParquetTable<T>(tablePath);
+        return new ParquetTable<T>(tablePath);
     }
 
     [Test]

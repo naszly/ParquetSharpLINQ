@@ -28,7 +28,7 @@ public class SourceGenerationTests
     }
 
     [Test]
-    public void GeneratedMapper_ShouldBeUsedByHiveParquetTable()
+    public void GeneratedMapper_ShouldBeUsedByParquetTable()
     {
         const string mapperTypeName = "ParquetSharpLINQ.Tests.GeneratedTestEntityParquetMapper";
         var mapperType = typeof(GeneratedTestEntity).Assembly.GetType(mapperTypeName);
@@ -59,20 +59,20 @@ public class SourceGenerationTests
     }
 
     [Test]
-    public void HiveParquetTable_ShouldUseGeneratedMapper_NotReflection()
+    public void ParquetTable_ShouldUseGeneratedMapper_NotReflection()
     {
         const string mapperTypeName = "ParquetSharpLINQ.Tests.GeneratedTestEntityParquetMapper";
         var generatedMapperExists = typeof(GeneratedTestEntity).Assembly.GetType(mapperTypeName) != null;
         Assert.That(generatedMapperExists, Is.True,
             "This test verifies that source generation is working. The generated mapper must exist.");
-        var table = new HiveParquetTable<GeneratedTestEntity>("/dummy/path");
-        var mapperField = typeof(HiveParquetTable<GeneratedTestEntity>)
+        var table = new ParquetTable<GeneratedTestEntity>("/dummy/path");
+        var mapperField = typeof(ParquetTable<GeneratedTestEntity>)
             .GetField("_mapper", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.That(mapperField, Is.Not.Null);
         var mapper = mapperField!.GetValue(table);
         Assert.That(mapper, Is.Not.Null);
         Assert.That(mapper!.GetType().Name, Is.EqualTo("GeneratedTestEntityParquetMapper"),
-            "HiveParquetTable MUST use the source-generated mapper, NOT reflection mapper");
+            "ParquetTable MUST use the source-generated mapper, NOT reflection mapper");
     }
 
     [Test]
@@ -81,16 +81,16 @@ public class SourceGenerationTests
         // EntityWithoutAttributes has NO [ParquetColumn] attributes at all
         // Source generator won't create a mapper for it
         Assert.Throws<InvalidOperationException>(() =>
-                new HiveParquetTable<EntityWithoutAttributes>("/dummy/path"),
+                new ParquetTable<EntityWithoutAttributes>("/dummy/path"),
             "Entity without [ParquetColumn] attributes should throw - no mapper generated");
     }
 
     [Test]
     public void AllParquetColumnEntities_ShouldUseGeneratedMappers()
     {
-        var table = new HiveParquetTable<TestEntity>("/dummy/path");
+        var table = new ParquetTable<TestEntity>("/dummy/path");
 
-        var mapperField = typeof(HiveParquetTable<TestEntity>)
+        var mapperField = typeof(ParquetTable<TestEntity>)
             .GetField("_mapper", BindingFlags.NonPublic | BindingFlags.Instance);
 
         var mapper = mapperField!.GetValue(table);
@@ -204,7 +204,7 @@ public class SourceGenerationTests
         var mapperType = typeof(TestEntityWithDateTimePartition).Assembly.GetType(mapperTypeName);
         var mapper = Activator.CreateInstance(mapperType!) as IParquetMapper<TestEntityWithDateTimePartition>;
 
-        // Simulate how HiveParquetTable enriches rows with partition values
+        // Simulate how ParquetTable enriches rows with partition values
         // Partition values from directory names like "event_date=2025-10-01" are strings
         var row = new Dictionary<string, object?>
         {

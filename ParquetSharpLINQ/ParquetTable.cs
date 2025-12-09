@@ -8,23 +8,24 @@ using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ;
 
-public class HiveParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
+public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
 {
     private readonly IParquetMapper<T> _mapper;
     private readonly IParquetReader _reader;
     private readonly string _rootPath;
 
     /// <summary>
-    /// Creates a new HiveParquetTable for querying Parquet files with Hive-style partitioning.
+    /// Creates a new ParquetTable for querying Parquet files.
+    /// Supports both Hive-style partitioning and Delta Lake tables.
     /// </summary>
     /// <param name="rootPath">Root directory containing Parquet files</param>
     /// <param name="reader">Optional custom Parquet reader (for testing/custom implementations)</param>
     /// <param name="mapper">Optional custom mapper (for DI/testing). If null, uses source-generated mapper.</param>
-    public HiveParquetTable(string rootPath, IParquetReader? reader = null, IParquetMapper<T>? mapper = null)
+    public ParquetTable(string rootPath, IParquetReader? reader = null, IParquetMapper<T>? mapper = null)
     {
         _rootPath = rootPath ?? throw new ArgumentNullException(nameof(rootPath));
         _reader = reader ?? new ParquetSharpReader();
-        Provider = new HiveParquetQueryProvider<T>(this);
+        Provider = new ParquetQueryProvider<T>(this);
         Expression = Expression.Constant(this);
 
         if (mapper != null)

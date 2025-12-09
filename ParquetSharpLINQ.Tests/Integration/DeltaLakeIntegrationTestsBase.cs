@@ -8,7 +8,7 @@ namespace ParquetSharpLINQ.Tests.Integration;
 /// </summary>
 public abstract class DeltaLakeIntegrationTestsBase
 {
-    protected abstract HiveParquetTable<T> CreateTable<T>(string tableName) where T : new();
+    protected abstract ParquetTable<T> CreateTable<T>(string tableName) where T : new();
 
     [Test]
     public void SimpleDeltaTable_CanBeQueried()

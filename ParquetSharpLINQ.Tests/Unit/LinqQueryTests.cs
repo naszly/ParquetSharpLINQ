@@ -81,7 +81,7 @@ public class LinqQueryTests
     [Test]
     public void Where_FiltersByPredicate()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table.Where(e => e.Amount > 200).ToList();
 
@@ -92,7 +92,7 @@ public class LinqQueryTests
     [Test]
     public void Where_WithMultipleConditions_FiltersCorrectly()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table
             .Where(e => e.Amount > 50)
@@ -106,7 +106,7 @@ public class LinqQueryTests
     [Test]
     public void Select_ProjectsProperties()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table.Select(e => new { e.Name, e.Amount }).ToList();
 
@@ -118,7 +118,7 @@ public class LinqQueryTests
     [Test]
     public void OrderBy_SortsAscending()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table.OrderBy(e => e.Amount).ToList();
 
@@ -131,7 +131,7 @@ public class LinqQueryTests
     [Test]
     public void OrderByDescending_SortsDescending()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table.OrderByDescending(e => e.Amount).ToList();
 
@@ -144,7 +144,7 @@ public class LinqQueryTests
     [Test]
     public void Take_LimitsResults()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table.Take(2).ToList();
 
@@ -154,7 +154,7 @@ public class LinqQueryTests
     [Test]
     public void Skip_SkipsRecords()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table.Skip(1).ToList();
 
@@ -165,7 +165,7 @@ public class LinqQueryTests
     [Test]
     public void First_ReturnsFirstElement()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var result = table.First();
 
@@ -175,7 +175,7 @@ public class LinqQueryTests
     [Test]
     public void FirstOrDefault_WithNoMatch_ReturnsNull()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var result = table.FirstOrDefault(e => e.Amount > 1000);
 
@@ -185,7 +185,7 @@ public class LinqQueryTests
     [Test]
     public void Count_ReturnsCorrectCount()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var count = table.Count();
 
@@ -195,7 +195,7 @@ public class LinqQueryTests
     [Test]
     public void Count_WithPredicate_ReturnsFilteredCount()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var count = table.Count(e => e.IsActive);
 
@@ -205,7 +205,7 @@ public class LinqQueryTests
     [Test]
     public void Any_WithMatchingPredicate_ReturnsTrue()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var result = table.Any(e => e.Name == "Bob");
 
@@ -215,7 +215,7 @@ public class LinqQueryTests
     [Test]
     public void Any_WithoutMatch_ReturnsFalse()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var result = table.Any(e => e.Name == "Nonexistent");
 
@@ -225,7 +225,7 @@ public class LinqQueryTests
     [Test]
     public void GroupBy_GroupsCorrectly()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table
             .GroupBy(e => e.IsActive)
@@ -240,7 +240,7 @@ public class LinqQueryTests
     [Test]
     public void Sum_CalculatesCorrectly()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var sum = table.Sum(e => e.Amount);
 
@@ -250,7 +250,7 @@ public class LinqQueryTests
     [Test]
     public void Average_CalculatesCorrectly()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var average = table.Average(e => e.Count);
 
@@ -260,7 +260,7 @@ public class LinqQueryTests
     [Test]
     public void Min_ReturnsMinimumValue()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var min = table.Min(e => e.Amount);
 
@@ -270,7 +270,7 @@ public class LinqQueryTests
     [Test]
     public void Max_ReturnsMaximumValue()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var max = table.Max(e => e.Amount);
 
@@ -280,7 +280,7 @@ public class LinqQueryTests
     [Test]
     public void ComplexQuery_CombinesMultipleOperations()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var results = table
             .Where(e => e.IsActive)

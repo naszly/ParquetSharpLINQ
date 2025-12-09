@@ -28,7 +28,7 @@ using ParquetSharpLINQ.Azure;
 
 // Create table from Azure Blob Storage
 var connectionString = "DefaultEndpointsProtocol=https;AccountName=...";
-using var table = new AzureHiveParquetTable<SalesRecord>(
+using var table = new AzureBlobParquetTable<SalesRecord>(
     connectionString: connectionString,
     containerName: "sales-data"
 );
@@ -46,7 +46,7 @@ var results = table
 using ParquetSharpLINQ.Azure;
 
 // Delta Lake tables work automatically - just point to the container
-using var deltaTable = new AzureHiveParquetTable<SalesRecord>(
+using var deltaTable = new AzureBlobParquetTable<SalesRecord>(
     connectionString: connectionString,
     containerName: "delta-sales"  // Container with _delta_log/ prefix
 );
@@ -60,16 +60,19 @@ var results = deltaTable
 
 ## Classes
 
-### AzureHiveParquetTable<T>
+### AzureBlobParquetTable<T>
 
-Convenience wrapper for querying Azure Blob Storage with Hive-style partitioning and Delta Lake support.
+Parquet table for querying Azure Blob Storage with Hive-style partitioning and Delta Lake support.
 
 ```csharp
 // With connection string
-var table = new AzureHiveParquetTable<T>(connectionString, containerName);
+var table = new AzureBlobParquetTable<T>(connectionString, containerName);
 
 // With existing BlobContainerClient
-var table = new AzureHiveParquetTable<T>(containerClient);
+var table = new AzureBlobParquetTable<T>(containerClient);
+
+// With blob prefix (subfolder)
+var table = new AzureBlobParquetTable<T>(connectionString, containerName, "data/sales/");
 ```
 
 **Delta Lake Support:**
@@ -83,7 +86,7 @@ Low-level reader for streaming Parquet files from Azure.
 
 ```csharp
 var reader = new AzureBlobParquetReader(connectionString, containerName);
-var table = new HiveParquetTable<T>("", reader: reader);
+var table = new ParquetTable<T>("", reader: reader);
 ```
 
 ### AzurePartitionDiscovery
@@ -104,7 +107,7 @@ var partitions = AzurePartitionDiscovery.Discover(containerClient);
 
 ```csharp
 var connectionString = "DefaultEndpointsProtocol=https;AccountName=...";
-var table = new AzureHiveParquetTable<T>(connectionString, "container");
+var table = new AzureBlobParquetTable<T>(connectionString, "container");
 ```
 
 ### Managed Identity (Production - Recommended)
@@ -117,7 +120,7 @@ var containerClient = new BlobServiceClient(
     new DefaultAzureCredential()
 ).GetBlobContainerClient("container");
 
-var table = new AzureHiveParquetTable<T>(containerClient);
+var table = new AzureBlobParquetTable<T>(containerClient);
 ```
 
 ## Testing with Azurite
@@ -137,7 +140,7 @@ const string AzuriteConnectionString =
     "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
 
 // Test your code
-using var table = new AzureHiveParquetTable<SalesRecord>(
+using var table = new AzureBlobParquetTable<SalesRecord>(
     AzuriteConnectionString,
     "test-container"
 );

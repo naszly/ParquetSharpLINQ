@@ -3,11 +3,11 @@ using System.Linq.Expressions;
 
 namespace ParquetSharpLINQ;
 
-internal sealed class HiveParquetQueryProvider<T> : IQueryProvider where T : new()
+internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
 {
-    private readonly HiveParquetTable<T> _table;
+    private readonly ParquetTable<T> _table;
 
-    internal HiveParquetQueryProvider(HiveParquetTable<T> table)
+    internal ParquetQueryProvider(ParquetTable<T> table)
     {
         _table = table ?? throw new ArgumentNullException(nameof(table));
     }
@@ -17,14 +17,14 @@ internal sealed class HiveParquetQueryProvider<T> : IQueryProvider where T : new
         ArgumentNullException.ThrowIfNull(expression);
 
         var elementType = GetElementType(expression.Type);
-        var queryableType = typeof(HiveParquetQueryable<>).MakeGenericType(elementType);
+        var queryableType = typeof(ParquetQueryable<>).MakeGenericType(elementType);
         return (IQueryable)Activator.CreateInstance(queryableType, this, expression)!;
     }
 
     public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        return new HiveParquetQueryable<TElement>(this, expression);
+        return new ParquetQueryable<TElement>(this, expression);
     }
 
     public object? Execute(Expression expression)
@@ -46,7 +46,7 @@ internal sealed class HiveParquetQueryProvider<T> : IQueryProvider where T : new
             analysis.RequestedColumns.Count > 0 ? analysis.RequestedColumns : null
         ).AsQueryable();
 
-        var rewritten = HiveParquetExpressionReplacer<T>.Replace(expression, _table, sourceQueryable);
+        var rewritten = ParquetExpressionReplacer<T>.Replace(expression, _table, sourceQueryable);
         return sourceQueryable.Provider.Execute<TResult>(rewritten);
     }
 
@@ -70,9 +70,9 @@ internal sealed class HiveParquetQueryProvider<T> : IQueryProvider where T : new
     }
 }
 
-internal sealed class HiveParquetQueryable<TElement> : IOrderedQueryable<TElement>
+internal sealed class ParquetQueryable<TElement> : IOrderedQueryable<TElement>
 {
-    public HiveParquetQueryable(IQueryProvider provider, Expression expression)
+    public ParquetQueryable(IQueryProvider provider, Expression expression)
     {
         Provider = provider ?? throw new ArgumentNullException(nameof(provider));
         Expression = expression ?? throw new ArgumentNullException(nameof(expression));
@@ -102,12 +102,12 @@ internal sealed class HiveParquetQueryable<TElement> : IOrderedQueryable<TElemen
     }
 }
 
-internal sealed class HiveParquetExpressionReplacer<TRoot> : ExpressionVisitor where TRoot : new()
+internal sealed class ParquetExpressionReplacer<TRoot> : ExpressionVisitor where TRoot : new()
 {
     private readonly IQueryable _replacement;
     private readonly object _target;
 
-    private HiveParquetExpressionReplacer(object target, IQueryable replacement)
+    private ParquetExpressionReplacer(object target, IQueryable replacement)
     {
         _target = target;
         _replacement = replacement;
@@ -119,7 +119,7 @@ internal sealed class HiveParquetExpressionReplacer<TRoot> : ExpressionVisitor w
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(replacement);
 
-        return new HiveParquetExpressionReplacer<TRoot>(target, replacement).Visit(expression);
+        return new ParquetExpressionReplacer<TRoot>(target, replacement).Visit(expression);
     }
 
     protected override Expression VisitConstant(ConstantExpression node)

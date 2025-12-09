@@ -54,7 +54,7 @@ public class SalesRecord
 
 **Local Files:**
 ```csharp
-using var table = new HiveParquetTable<SalesRecord>("/data/sales");
+using var table = new ParquetTable<SalesRecord>("/data/sales");
 
 // Clean syntax - partition pruning works automatically!
 var count = table.Count(s => s.Region == "eu-west" && s.Year == 2024);
@@ -71,7 +71,7 @@ var euSales = table
 **Delta Lake Tables:**
 ```csharp
 // Delta Lake tables work automatically - just point to the Delta table directory
-using var table = new HiveParquetTable<SalesRecord>("/data/delta-sales");
+using var table = new ParquetTable<SalesRecord>("/data/delta-sales");
 
 // Delta transaction log is read automatically
 // Only active files (after updates/deletes) are queried
@@ -85,7 +85,7 @@ var results = table
 using ParquetSharpLINQ.Azure;
 
 // Stream directly from Azure - no disk downloads!
-using var table = new AzureHiveParquetTable<SalesRecord>(
+using var table = new AzureBlobParquetTable<SalesRecord>(
     connectionString: "DefaultEndpointsProtocol=https;AccountName=...",
     containerName: "sales-data"
 );
@@ -97,7 +97,7 @@ var results = table
     .ToList();
 
 // Delta Lake on Azure also works automatically!
-using var deltaTable = new AzureHiveParquetTable<SalesRecord>(
+using var deltaTable = new AzureBlobParquetTable<SalesRecord>(
     connectionString: "DefaultEndpointsProtocol=https;AccountName=...",
     containerName: "delta-sales"
 );
@@ -265,7 +265,7 @@ ParquetSharpLINQ automatically detects and reads Delta Lake tables by looking fo
 //     part-00000.parquet
 //     part-00001.parquet (marked as removed in log)
 
-using var table = new HiveParquetTable<SalesRecord>("/data/sales");
+using var table = new ParquetTable<SalesRecord>("/data/sales");
 
 // Automatically:
 // 1. Detects _delta_log/ directory

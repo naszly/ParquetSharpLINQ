@@ -4,7 +4,7 @@ namespace ParquetSharpLINQ.Tests.Unit;
 
 [TestFixture]
 [Category("Unit")]
-public class HiveParquetTableTests
+public class ParquetTableTests
 {
     [SetUp]
     public void Setup()
@@ -19,14 +19,14 @@ public class HiveParquetTableTests
     [Test]
     public void Constructor_WithNullPath_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => new HiveParquetTable<TestEntity>(null!));
+        Assert.Throws<ArgumentNullException>(() => new ParquetTable<TestEntity>(null!));
     }
 
     [Test]
     public void Constructor_WithEntityWithoutAttributes_ThrowsInvalidOperationException()
     {
         var ex = Assert.Throws<InvalidOperationException>(() =>
-            new HiveParquetTable<EntityWithoutAttributes>(_testPath, _mockReader));
+            new ParquetTable<EntityWithoutAttributes>(_testPath, _mockReader));
 
         Assert.That(ex!.Message, Does.Contain("source-generated mapper"));
     }
@@ -34,13 +34,13 @@ public class HiveParquetTableTests
     [Test]
     public void Constructor_WithValidEntity_Succeeds()
     {
-        Assert.DoesNotThrow(() => new HiveParquetTable<TestEntity>(_testPath, _mockReader));
+        Assert.DoesNotThrow(() => new ParquetTable<TestEntity>(_testPath, _mockReader));
     }
 
     [Test]
     public void ElementType_ReturnsCorrectType()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var elementType = table.ElementType;
 
@@ -50,7 +50,7 @@ public class HiveParquetTableTests
     [Test]
     public void Provider_ReturnsNonNullProvider()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var provider = table.Provider;
 
@@ -60,7 +60,7 @@ public class HiveParquetTableTests
     [Test]
     public void AsQueryable_ReturnsSelf()
     {
-        var table = new HiveParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
 
         var queryable = table.AsQueryable();
 
@@ -78,7 +78,7 @@ public class HiveParquetTableTests
             Directory.CreateDirectory(partition);
             File.WriteAllText(Path.Combine(partition, "data.parquet"), "dummy");
 
-            var table = new HiveParquetTable<TestEntity>(tempDir, _mockReader);
+            var table = new ParquetTable<TestEntity>(tempDir, _mockReader);
 
             var partitions = table.DiscoverPartitions().ToList();
 

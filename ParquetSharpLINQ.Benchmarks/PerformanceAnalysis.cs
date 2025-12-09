@@ -82,7 +82,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzePartitionPruning(string dataPath)
     {
-        using var table = new HiveParquetTable<SalesRecord>(dataPath);
+        using var table = new ParquetTable<SalesRecord>(dataPath);
 
         // Baseline: Full table scan
         var (fullCount, fullTime) = MeasureQuery(() => table.Count());
@@ -130,7 +130,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzeColumnProjection(string dataPath)
     {
-        using var table = new HiveParquetTable<SalesRecord>(dataPath);
+        using var table = new ParquetTable<SalesRecord>(dataPath);
 
         // Full columns (limited to 1000 records for fair comparison)
         var (fullCount, fullTime) = MeasureQuery(() => table.Take(1000).Count());
@@ -158,7 +158,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzeCombinedOptimizations(string dataPath)
     {
-        using var table = new HiveParquetTable<SalesRecord>(dataPath);
+        using var table = new ParquetTable<SalesRecord>(dataPath);
 
         // Baseline: Full scan with all columns
         var (baselineCount, baselineTime) = MeasureQuery(() => table.Count());
@@ -192,7 +192,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzeRegionQueries(string dataPath)
     {
-        using var table = new HiveParquetTable<SalesRecord>(dataPath);
+        using var table = new ParquetTable<SalesRecord>(dataPath);
 
         var regions = new[] { "us-east", "us-west", "eu-central", "eu-west", "ap-southeast" };
 

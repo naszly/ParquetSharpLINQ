@@ -25,7 +25,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 1000 });
             }
 
-            using var table = new HiveParquetTable<EntityWithByte>(tempDir);
+            using var table = new ParquetTable<EntityWithByte>(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -55,7 +55,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { -1 });
             }
 
-            using var table = new HiveParquetTable<EntityWithByte>(tempDir);
+            using var table = new ParquetTable<EntityWithByte>(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -85,7 +85,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 40000 });
             }
 
-            using var table = new HiveParquetTable<EntityWithShort>(tempDir);
+            using var table = new ParquetTable<EntityWithShort>(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -115,7 +115,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 200 });
             }
 
-            using var table = new HiveParquetTable<EntityWithByte>(tempDir);
+            using var table = new ParquetTable<EntityWithByte>(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));
@@ -147,7 +147,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { "123" });
             }
 
-            using var table = new HiveParquetTable<EntityWithInt>(tempDir);
+            using var table = new ParquetTable<EntityWithInt>(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));
@@ -179,7 +179,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { "not a number" });
             }
 
-            using var table = new HiveParquetTable<EntityWithInt>(tempDir);
+            using var table = new ParquetTable<EntityWithInt>(tempDir);
             
             Assert.Throws<FormatException>(() => table.ToList());
         }
@@ -209,7 +209,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 3000000000L });
             }
 
-            using var table = new HiveParquetTable<EntityWithInt>(tempDir);
+            using var table = new ParquetTable<EntityWithInt>(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -239,7 +239,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { -3000000000L });
             }
 
-            using var table = new HiveParquetTable<EntityWithInt>(tempDir);
+            using var table = new ParquetTable<EntityWithInt>(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -269,7 +269,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 1000000L });
             }
 
-            using var table = new HiveParquetTable<EntityWithInt>(tempDir);
+            using var table = new ParquetTable<EntityWithInt>(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));

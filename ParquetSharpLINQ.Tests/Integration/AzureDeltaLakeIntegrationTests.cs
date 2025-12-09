@@ -73,7 +73,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         }
     }
 
-    protected override HiveParquetTable<T> CreateTable<T>(string tableName)
+    protected override ParquetTable<T> CreateTable<T>(string tableName)
     {
         if (_blobServiceClient == null)
         {
@@ -85,7 +85,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
             Assert.Fail($"Unknown table name: {tableName}");
         }
 
-        return new AzureHiveParquetTable<T>(AzuriteConnectionString, containerName);
+        return new AzureBlobParquetTable<T>(AzuriteConnectionString, containerName);
     }
 
     private async Task UploadDeltaTableToAzure(string containerName, string tableName)
@@ -150,7 +150,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
 
         await UploadDeltaTableWithPrefix(containerClient, "simple_delta", blobPrefix);
 
-        using var table = new AzureHiveParquetTable<SimpleDeltaRecord>(
+        using var table = new AzureBlobParquetTable<SimpleDeltaRecord>(
             AzuriteConnectionString,
             containerName,
             blobPrefix);
@@ -179,7 +179,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
 
         await UploadDeltaTableWithPrefix(containerClient, "partitioned_delta", blobPrefix);
 
-        using var table = new AzureHiveParquetTable<PartitionedDeltaRecord>(
+        using var table = new AzureBlobParquetTable<PartitionedDeltaRecord>(
             AzuriteConnectionString,
             containerName,
             blobPrefix);
@@ -221,7 +221,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         await UploadDeltaTableWithPrefix(containerClient, "delta_with_updates", blobPrefix);
 
         // Read from subfolder should only get delta_with_updates (6 records)
-        using var tableWithPrefix = new AzureHiveParquetTable<DeltaProductRecord>(
+        using var tableWithPrefix = new AzureBlobParquetTable<DeltaProductRecord>(
             AzuriteConnectionString,
             containerName,
             blobPrefix);
@@ -231,7 +231,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
             "Should only read from subfolder, not root");
 
         // Verify root still has simple_delta (5 records)
-        using var rootTable = new AzureHiveParquetTable<SimpleDeltaRecord>(
+        using var rootTable = new AzureBlobParquetTable<SimpleDeltaRecord>(
             AzuriteConnectionString,
             containerName,
             "");

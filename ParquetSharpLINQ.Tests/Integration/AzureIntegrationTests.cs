@@ -102,7 +102,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_FullTableScan_ReturnsAllRecords()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
         var expectedCount = Years * MonthsPerYear * Regions * RecordsPerPartition;
 
         var results = table.ToList();
@@ -115,7 +115,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_PartitionPruning_ByYear_OnlyReadsMatchingPartitions()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
         var expectedCount = MonthsPerYear * Regions * RecordsPerPartition;
 
         var results = table.Where(s => s.Year == 2024).ToList();
@@ -127,7 +127,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_PartitionPruning_ByRegion_OnlyReadsMatchingPartitions()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
         var expectedCount = Years * MonthsPerYear * RecordsPerPartition;
 
         var results = table.Where(s => s.Region == "eu-west").ToList();
@@ -139,7 +139,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_PartitionPruning_MultipleFilters_OnlyReadsSinglePartition()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
         var expectedCount = RecordsPerPartition;
 
         var results = table
@@ -153,7 +153,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_CountWithPredicate_ReturnsCorrectCount()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
         var expectedCount = MonthsPerYear * Regions * RecordsPerPartition;
 
         var count = table.Count(s => s.Year == 2024);
@@ -164,7 +164,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_AnyWithPredicate_ReturnsTrue()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var hasData = table.Any(s => s.Year == 2024 && s.Region == "eu-west");
 
@@ -174,7 +174,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_FirstOrDefaultWithPredicate_ReturnsRecord()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var record = table.FirstOrDefault(s => s.Year == 2024 && s.Month == 2);
 
@@ -186,7 +186,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_ColumnProjection_OnlyReadsRequestedColumns()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var results = table
             .Where(s => s.Year == 2024)
@@ -203,7 +203,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_CachingPerformance_SecondQueryIsFaster()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var sw = Stopwatch.StartNew();
         var count1 = table.Count(s => s.Year == 2024 && s.Month == 1);
@@ -220,7 +220,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_ComplexQuery_CombinesMultipleOperations()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var results = table
             .Where(s => s.Year == 2024 && s.Region == "us-east")
@@ -239,7 +239,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_MultipleQueries_OnSameTable_WorkIndependently()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var count2023 = table.Count(s => s.Year == 2023);
         var count2024 = table.Count(s => s.Year == 2024);
@@ -274,7 +274,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_NoMatchingPartitions_ReturnsEmpty()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var results = table.Where(s => s.Year == 2025).ToList();
 
@@ -284,7 +284,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_StreamingFromBlob_WorksCorrectly()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var count = 0;
         foreach (var record in table.Where(s => s.Year == 2024))
@@ -300,7 +300,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_WithBlobContainerClient_WorksCorrectly()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(ContainerClient);
+        using var table = new AzureBlobParquetTable<SalesRecord>(ContainerClient);
 
         var count = table.Count(s => s.Year == 2024);
         var expectedCount = MonthsPerYear * Regions * RecordsPerPartition;
@@ -311,7 +311,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_WithLinqFilter_OnlyReadsMatchingPartitions()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(
+        using var table = new AzureBlobParquetTable<SalesRecord>(
             AzuriteConnectionString,
             _containerName
         );
@@ -326,7 +326,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_Aggregations_CalculateCorrectly()
     {
-        using var table = new AzureHiveParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
+        using var table = new AzureBlobParquetTable<SalesRecord>(AzuriteConnectionString, _containerName);
 
         var allRecords = table.Where(s => s.Year == 2024 && s.Month == 1).ToList();
         var sum = allRecords.Sum(s => s.TotalAmount);
@@ -373,7 +373,7 @@ public class AzureIntegrationTests
             }
 
             // Query with blob prefix
-            using var table = new AzureHiveParquetTable<SalesRecord>(
+            using var table = new AzureBlobParquetTable<SalesRecord>(
                 AzuriteConnectionString,
                 _containerName,
                 subfolderPrefix);

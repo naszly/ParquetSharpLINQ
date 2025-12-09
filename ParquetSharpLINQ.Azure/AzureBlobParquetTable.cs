@@ -4,21 +4,22 @@ using ParquetSharpLINQ.Models;
 namespace ParquetSharpLINQ.Azure;
 
 /// <summary>
-/// Specialized HiveParquetTable for Azure Blob Storage with partition discovery support.
+/// Parquet table backed by Azure Blob Storage with partition discovery support.
+/// Supports both Hive-style partitioning and Delta Lake tables.
 /// </summary>
-public sealed class AzureHiveParquetTable<T> : HiveParquetTable<T> where T : new()
+public sealed class AzureBlobParquetTable<T> : ParquetTable<T> where T : new()
 {
     private readonly BlobContainerClient _containerClient;
     private readonly string _blobPrefix;
 
     /// <summary>
-    /// Creates a new Azure Blob Storage-backed HiveParquetTable.
+    /// Creates a new Azure Blob Storage-backed Parquet table.
     /// </summary>
     /// <param name="connectionString">Azure Storage connection string</param>
     /// <param name="containerName">Blob container name</param>
     /// <param name="blobPrefix">Optional blob prefix/subfolder path (e.g., "data/sales/" or empty for root)</param>
     /// <param name="mapper">Optional custom mapper</param>
-    public AzureHiveParquetTable(
+    public AzureBlobParquetTable(
         string connectionString,
         string containerName,
         string blobPrefix = "",
@@ -34,12 +35,12 @@ public sealed class AzureHiveParquetTable<T> : HiveParquetTable<T> where T : new
     }
 
     /// <summary>
-    /// Creates a new Azure Blob Storage-backed HiveParquetTable with existing container client.
+    /// Creates a new Azure Blob Storage-backed Parquet table with existing container client.
     /// </summary>
     /// <param name="containerClient">Existing blob container client</param>
     /// <param name="blobPrefix">Optional blob prefix/subfolder path (e.g., "data/sales/" or empty for root)</param>
     /// <param name="mapper">Optional custom mapper</param>
-    public AzureHiveParquetTable(
+    public AzureBlobParquetTable(
         BlobContainerClient containerClient,
         string blobPrefix = "",
         IParquetMapper<T>? mapper = null)
