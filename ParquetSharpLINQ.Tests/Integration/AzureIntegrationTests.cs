@@ -340,4 +340,60 @@ public class AzureIntegrationTests
         Assert.That(avg, Is.LessThanOrEqualTo(max));
         Assert.That(avg, Is.GreaterThanOrEqualTo(min));
     }
+
+    [Test]
+    public async Task Azure_WithBlobPrefix_OnlyReadsFromSubfolder()
+    {
+        // Upload data to a subfolder
+        var subfolderPrefix = "data/sales/";
+        var tempPath = Path.Combine(Path.GetTempPath(), $"ParquetAzureSubfolderTest_{Guid.NewGuid()}");
+
+        try
+        {
+            Directory.CreateDirectory(tempPath);
+
+            var generator = new TestDataGenerator();
+            generator.GenerateParquetFiles(
+                tempPath,
+                50,
+                [2025],
+                2
+            );
+
+            var files = Directory.GetFiles(tempPath, "*.parquet", SearchOption.AllDirectories);
+
+            foreach (var file in files)
+            {
+                var relativePath = Path.GetRelativePath(tempPath, file).Replace('\\', '/');
+                var blobPath = subfolderPrefix + relativePath;
+                var blobClient = ContainerClient.GetBlobClient(blobPath);
+
+                await using var stream = File.OpenRead(file);
+                await blobClient.UploadAsync(stream, true);
+            }
+
+            // Query with blob prefix
+            using var table = new AzureHiveParquetTable<SalesRecord>(
+                AzuriteConnectionString,
+                _containerName,
+                subfolderPrefix);
+
+            var count = table.Count(s => s.Year == 2025);
+            var expectedCount = 2 * Regions * 50; // 2 months, 5 regions, 50 records per partition
+
+            Assert.That(count, Is.EqualTo(expectedCount));
+
+            // Verify it only reads from the subfolder (shouldn't find 2023/2024 data)
+            var count2023 = table.Count(s => s.Year == 2023);
+            var count2024 = table.Count(s => s.Year == 2024);
+            
+            Assert.That(count2023, Is.EqualTo(0), "Should not find 2023 data when reading from subfolder");
+            Assert.That(count2024, Is.EqualTo(0), "Should not find 2024 data when reading from subfolder");
+        }
+        finally
+        {
+            if (Directory.Exists(tempPath))
+                Directory.Delete(tempPath, true);
+        }
+    }
 }

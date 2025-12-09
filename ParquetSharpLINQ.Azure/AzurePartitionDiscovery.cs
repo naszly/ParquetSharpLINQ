@@ -15,41 +15,71 @@ public static class AzurePartitionDiscovery
     /// Otherwise, scans blobs for Parquet files (Hive-style).
     /// </summary>
     /// <param name="containerClient">Azure Blob Container client</param>
+    /// <param name="blobPrefix">Optional blob prefix to limit discovery to a subfolder</param>
     /// <returns>Enumerable of discovered partitions</returns>
-    public static IEnumerable<Partition> Discover(BlobContainerClient containerClient)
+    public static IEnumerable<Partition> Discover(BlobContainerClient containerClient, string blobPrefix = "")
     {
-        if (containerClient == null)
+        ArgumentNullException.ThrowIfNull(containerClient);
+
+        blobPrefix = NormalizePrefix(blobPrefix);
+
+        if (IsDeltaTable(containerClient, blobPrefix))
         {
-            throw new ArgumentNullException(nameof(containerClient));
+            return DiscoverFromDeltaLog(containerClient, blobPrefix);
         }
 
-        if (IsDeltaTable(containerClient))
-        {
-            return DiscoverFromDeltaLog(containerClient);
-        }
-
-        return DiscoverFromBlobs(containerClient);
+        return DiscoverFromBlobs(containerClient, blobPrefix);
     }
 
-    private static bool IsDeltaTable(BlobContainerClient containerClient)
+    /// <summary>
+    /// Normalizes a blob prefix by ensuring it doesn't start with / and ends with / (if non-empty).
+    /// </summary>
+    private static string NormalizePrefix(string prefix)
     {
-        var deltaLogBlobs = containerClient.GetBlobs(prefix: "_delta_log/");
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return string.Empty;
+        }
+
+        prefix = prefix.Trim();
+        
+        if (prefix.StartsWith('/'))
+        {
+            prefix = prefix.TrimStart('/');
+        }
+
+        if (!prefix.EndsWith('/'))
+        {
+            prefix += '/';
+        }
+
+        return prefix;
+    }
+
+    private static bool IsDeltaTable(BlobContainerClient containerClient, string blobPrefix)
+    {
+        var deltaLogPrefix = blobPrefix + "_delta_log/";
+        var deltaLogBlobs = containerClient.GetBlobs(prefix: deltaLogPrefix);
         return deltaLogBlobs.Any();
     }
 
-    private static IEnumerable<Partition> DiscoverFromDeltaLog(BlobContainerClient containerClient)
+    private static IEnumerable<Partition> DiscoverFromDeltaLog(BlobContainerClient containerClient, string blobPrefix)
     {
-        var deltaReader = new AzureDeltaLogReader(containerClient);
+        var deltaReader = new AzureDeltaLogReader(containerClient, blobPrefix);
         var snapshot = deltaReader.GetLatestSnapshot();
         var partitionGroups = new Dictionary<string, (Dictionary<string, string> Values, List<string> Files)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var addAction in snapshot.ActiveFiles)
         {
-            var directory = GetDirectory(addAction.Path);
+            var fullFilePath = string.IsNullOrEmpty(blobPrefix) 
+                ? addAction.Path 
+                : blobPrefix + addAction.Path;
             
+            var directory = GetDirectory(fullFilePath);
+
             if (string.IsNullOrEmpty(directory))
             {
-                directory = "";
+                directory = blobPrefix.TrimEnd('/');
             }
 
             if (!partitionGroups.ContainsKey(directory))
@@ -61,7 +91,7 @@ public static class AzurePartitionDiscovery
                 );
             }
 
-            partitionGroups[directory].Files.Add(addAction.Path);
+            partitionGroups[directory].Files.Add(fullFilePath);
         }
 
         return partitionGroups.Select(kvp => new Partition
@@ -72,9 +102,9 @@ public static class AzurePartitionDiscovery
         });
     }
 
-    private static IEnumerable<Partition> DiscoverFromBlobs(BlobContainerClient containerClient)
+    private static IEnumerable<Partition> DiscoverFromBlobs(BlobContainerClient containerClient, string blobPrefix)
     {
-        var blobs = containerClient.GetBlobs();
+        var blobs = containerClient.GetBlobs(prefix: blobPrefix);
         var partitionPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var blob in blobs)
@@ -93,7 +123,13 @@ public static class AzurePartitionDiscovery
 
         foreach (var path in partitionPaths.OrderBy(p => p))
         {
-            var values = HivePartitionParser.ParsePartitionValues(path);
+            var relativePath = path;
+            if (!string.IsNullOrEmpty(blobPrefix) && relativePath.StartsWith(blobPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                relativePath = relativePath.Substring(blobPrefix.Length);
+            }
+            
+            var values = HivePartitionParser.ParsePartitionValues(relativePath);
             yield return new Partition { Path = path, Values = values };
         }
     }

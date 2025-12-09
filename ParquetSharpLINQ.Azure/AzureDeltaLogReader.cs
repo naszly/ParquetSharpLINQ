@@ -9,11 +9,26 @@ namespace ParquetSharpLINQ.Azure;
 public class AzureDeltaLogReader
 {
     private readonly BlobContainerClient _containerClient;
-    private const string DeltaLogPrefix = "_delta_log/";
+    private readonly string _deltaLogPrefix;
 
-    public AzureDeltaLogReader(BlobContainerClient containerClient)
+    public AzureDeltaLogReader(BlobContainerClient containerClient, string blobPrefix = "")
     {
         _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
+        
+        blobPrefix = blobPrefix?.Trim() ?? "";
+        if (!string.IsNullOrEmpty(blobPrefix))
+        {
+            if (blobPrefix.StartsWith('/'))
+            {
+                blobPrefix = blobPrefix.TrimStart('/');
+            }
+            if (!blobPrefix.EndsWith('/'))
+            {
+                blobPrefix += '/';
+            }
+        }
+        
+        _deltaLogPrefix = blobPrefix + "_delta_log/";
     }
 
     public DeltaSnapshot GetLatestSnapshot()
@@ -27,7 +42,7 @@ public class AzureDeltaLogReader
 
     private IEnumerable<(string BlobName, long Version)> GetLogFiles()
     {
-        var blobs = _containerClient.GetBlobs(prefix: DeltaLogPrefix);
+        var blobs = _containerClient.GetBlobs(prefix: _deltaLogPrefix);
 
         foreach (var blob in blobs)
         {
