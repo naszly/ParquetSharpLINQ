@@ -149,7 +149,7 @@ public class ParquetMapperGenerator : IIncrementalGenerator
             var key = prop.IsPartition ? $"{partitionPrefix}{prop.ColumnName}" : prop.ColumnName;
             sb.AppendLine($"            // {prop.PropertyName}");
             sb.AppendLine("            {");
-            sb.AppendLine($"                if (TryGetValue(row, \"{key}\", out var rawValue))");
+            sb.AppendLine($"                if (ParquetMapperHelpers.TryGetValue(row, \"{key}\", out var rawValue))");
             sb.AppendLine("                {");
             if (prop.ThrowOnMissingOrNull)
             {
@@ -159,7 +159,7 @@ public class ParquetMapperGenerator : IIncrementalGenerator
             }
 
             sb.AppendLine(
-                $"                    instance.{prop.PropertyName} = ConvertValue<{prop.TypeName}>(rawValue);");
+                $"                    instance.{prop.PropertyName} = ParquetMapperHelpers.ConvertValue<{prop.TypeName}>(rawValue);");
             sb.AppendLine("                }");
             if (prop.ThrowOnMissingOrNull)
             {
@@ -175,76 +175,6 @@ public class ParquetMapperGenerator : IIncrementalGenerator
         }
 
         sb.AppendLine("            return instance;");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        GenerateHelperMethods(sb);
-    }
-
-    private static void GenerateHelperMethods(StringBuilder sb)
-    {
-        sb.AppendLine(
-            "        private static bool TryGetValue(IReadOnlyDictionary<string, object?> row, string key, out object? value)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            if (row.TryGetValue(key, out value))");
-        sb.AppendLine("                return true;");
-        sb.AppendLine();
-        sb.AppendLine("            foreach (var pair in row)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase))");
-        sb.AppendLine("                {");
-        sb.AppendLine("                    value = pair.Value;");
-        sb.AppendLine("                    return true;");
-        sb.AppendLine("                }");
-        sb.AppendLine("            }");
-        sb.AppendLine();
-        sb.AppendLine("            value = null;");
-        sb.AppendLine("            return false;");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        private static T ConvertValue<T>(object? value)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            if (value == null)");
-        sb.AppendLine("                return default(T)!;");
-        sb.AppendLine();
-        sb.AppendLine("            if (value is T typed)");
-        sb.AppendLine("                return typed;");
-        sb.AppendLine();
-        sb.AppendLine("            var targetType = typeof(T);");
-        sb.AppendLine("            var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;");
-        sb.AppendLine();
-        sb.AppendLine("            if (underlyingType.IsEnum)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                if (value is string enumText)");
-        sb.AppendLine("                    return (T)Enum.Parse(underlyingType, enumText, true);");
-        sb.AppendLine("                return (T)Enum.ToObject(underlyingType, value);");
-        sb.AppendLine("            }");
-        sb.AppendLine();
-        sb.AppendLine("            // Handle ParquetSharp.Date conversions");
-        sb.AppendLine("            if (value is global::ParquetSharp.Date parquetDate)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                var dateTime = parquetDate.DateTime;");
-        sb.AppendLine();
-        sb.AppendLine("                if (underlyingType == typeof(DateTime))");
-        sb.AppendLine("                    return (T)(object)dateTime;");
-        sb.AppendLine();
-        sb.AppendLine("#if NET6_0_OR_GREATER");
-        sb.AppendLine("                if (underlyingType == typeof(DateOnly))");
-        sb.AppendLine("                    return (T)(object)DateOnly.FromDateTime(dateTime);");
-        sb.AppendLine("#endif");
-        sb.AppendLine("            }");
-        sb.AppendLine();
-        sb.AppendLine("#if NET6_0_OR_GREATER");
-        sb.AppendLine("            if (underlyingType == typeof(DateOnly) && value is string dateOnlyStr)");
-        sb.AppendLine(
-            "                return (T)(object)DateOnly.Parse(dateOnlyStr, System.Globalization.CultureInfo.InvariantCulture);");
-        sb.AppendLine();
-        sb.AppendLine("            if (underlyingType == typeof(TimeOnly) && value is string timeOnlyStr)");
-        sb.AppendLine(
-            "                return (T)(object)TimeOnly.Parse(timeOnlyStr, System.Globalization.CultureInfo.InvariantCulture);");
-        sb.AppendLine("#endif");
-        sb.AppendLine();
-        sb.AppendLine(
-            "            return (T)Convert.ChangeType(value, underlyingType, System.Globalization.CultureInfo.InvariantCulture);");
         sb.AppendLine("        }");
     }
 
