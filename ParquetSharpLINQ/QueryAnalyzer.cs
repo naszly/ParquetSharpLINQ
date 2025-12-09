@@ -8,8 +8,15 @@ namespace ParquetSharpLINQ;
 /// </summary>
 internal sealed class QueryAnalyzer
 {
-    public HashSet<string> RequestedColumns { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Columns explicitly requested via SELECT projection.
+    /// - null: No SELECT projection found, read all entity columns
+    /// - non-null: Explicit SELECT projection, read only these specific columns
+    /// </summary>
+    public HashSet<string>? RequestedColumns { get; private set; }
+    
     public Dictionary<string, object?> PartitionFilters { get; } = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isInSelectProjection;
 
     public static QueryAnalyzer Analyze(Expression expression)
     {
@@ -80,24 +87,35 @@ internal sealed class QueryAnalyzer
 
     private void AnalyzeSelectProjection(LambdaExpression lambda)
     {
-        switch (lambda.Body)
+        // Initialize RequestedColumns when we find a SELECT - marks explicit column projection
+        RequestedColumns ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        _isInSelectProjection = true;
+        try
         {
-            case NewExpression newExpr:
-                foreach (var arg in newExpr.Arguments)
-                    if (arg is MemberExpression member)
-                        AnalyzeMemberAccess(member);
-                break;
-            case MemberInitExpression initExpr:
-                foreach (var binding in initExpr.Bindings)
-                    if (binding is MemberAssignment assignment)
-                        AnalyzeExpression(assignment.Expression);
-                break;
-            case MemberExpression member:
-                AnalyzeMemberAccess(member);
-                break;
-            default:
-                AnalyzeExpression(lambda.Body);
-                break;
+            switch (lambda.Body)
+            {
+                case NewExpression newExpr:
+                    foreach (var arg in newExpr.Arguments)
+                        if (arg is MemberExpression member)
+                            AnalyzeMemberAccess(member);
+                    break;
+                case MemberInitExpression initExpr:
+                    foreach (var binding in initExpr.Bindings)
+                        if (binding is MemberAssignment assignment)
+                            AnalyzeExpression(assignment.Expression);
+                    break;
+                case MemberExpression member:
+                    AnalyzeMemberAccess(member);
+                    break;
+                default:
+                    AnalyzeExpression(lambda.Body);
+                    break;
+            }
+        }
+        finally
+        {
+            _isInSelectProjection = false;
         }
     }
 
@@ -149,8 +167,9 @@ internal sealed class QueryAnalyzer
 
     private void AnalyzeMemberAccess(MemberExpression member)
     {
-        if (member.Member is PropertyInfo property)
-            RequestedColumns.Add(property.Name);
+        // Only add to RequestedColumns when explicitly inside a SELECT projection
+        if (_isInSelectProjection && member.Member is PropertyInfo property)
+            RequestedColumns?.Add(property.Name);
 
         if (member.Expression != null)
             AnalyzeExpression(member.Expression);

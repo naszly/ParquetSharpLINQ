@@ -69,8 +69,11 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(query.Expression);
 
-        Assert.That(analysis.RequestedColumns, Does.Contain("Amount"));
-        // but the key point is it won't filter partitions incorrectly
+        // RequestedColumns should be null when there's no SELECT projection
+        Assert.That(analysis.RequestedColumns, Is.Null, 
+            "RequestedColumns should be null when there's no SELECT projection");
+        // Partition filters should also be empty since Amount is not a partition
+        Assert.That(analysis.PartitionFilters, Is.Empty);
     }
 
     [Test]

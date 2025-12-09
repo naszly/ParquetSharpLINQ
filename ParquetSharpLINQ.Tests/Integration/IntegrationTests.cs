@@ -323,4 +323,32 @@ public class IntegrationTests
         Assert.That(years, Is.EquivalentTo(["2023", "2024"]));
         Assert.That(regions, Is.EquivalentTo(["ap-southeast", "eu-central", "eu-west", "us-east", "us-west"]));
     }
+
+    [Test]
+    public void Integration_PredicateOnNonPartitionColumn_ReadsAllRequestedColumns()
+    {
+        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        var results = table
+            .Where(s => s.TotalAmount > 1000)
+            .Where(s => s.ProductName == "Laptop")
+            .ToList();
+
+        Assert.That(results, Is.Not.Empty, "Should find records matching the predicates");
+        
+        foreach (var record in results)
+        {
+            Assert.That(record.TotalAmount, Is.GreaterThan(1000), "TotalAmount predicate should work");
+            Assert.That(record.ProductName, Is.EqualTo("Laptop"), "ProductName predicate should work");
+            
+            Assert.That(record.Id, Is.GreaterThan(0), "Id should be populated");
+            Assert.That(record.Quantity, Is.GreaterThan(0), "Quantity should be populated");
+            Assert.That(record.UnitPrice, Is.GreaterThan(0), "UnitPrice should be populated");
+            Assert.That(record.SaleDate, Is.Not.EqualTo(default(DateTime)), "SaleDate should be populated");
+            Assert.That(record.CustomerId, Is.GreaterThan(0), "CustomerId should be populated");
+            
+            Assert.That(record.Year, Is.GreaterThan(0), "Year partition should be populated");
+            Assert.That(record.Month, Is.GreaterThan(0), "Month partition should be populated");
+            Assert.That(record.Region, Is.Not.Null.And.Not.Empty, "Region partition should be populated");
+        }
+    }
 }

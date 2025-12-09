@@ -86,6 +86,8 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
     /// <summary>
     /// Optimized enumeration with partition pruning and column projection.
     /// </summary>
+    /// <param name="partitionFilters">Filters for partition pruning. Null = no filtering.</param>
+    /// <param name="requestedColumns">Columns to read. Null = all entity columns, non-null = specific columns.</param>
     internal IEnumerable<T> AsEnumerable(
         IReadOnlyDictionary<string, object?>? partitionFilters,
         IReadOnlyCollection<string>? requestedColumns)
@@ -269,9 +271,7 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
         IReadOnlyList<string> availableColumnNames,
         IReadOnlyCollection<string>? requestedColumns)
     {
-        var baseColumns = mapper.RequiredColumns is { Count: > 0 } requiredColumns
-            ? requiredColumns
-            : availableColumnNames;
+        var baseColumns = mapper.RequiredColumns ?? availableColumnNames;
 
         var normalizedBase = baseColumns
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -285,14 +285,8 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
 
             foreach (var propertyName in requestedColumns)
             {
-                if (propertyToColumnMap.TryGetValue(propertyName, out var columnName))
-                {
-                    requestedColumnNames.Add(columnName);
-                }
-                else
-                {
-                    requestedColumnNames.Add(propertyName);
-                }
+                var columnName = propertyToColumnMap.GetValueOrDefault(propertyName, propertyName);
+                requestedColumnNames.Add(columnName);
             }
 
             normalizedBase = normalizedBase

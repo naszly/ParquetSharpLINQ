@@ -64,7 +64,10 @@ public class QueryOptimizationTests
         {
             new(typeof(object), "id"),
             new(typeof(object), "name"),
-            new(typeof(object), "amount")
+            new(typeof(object), "amount"),
+            new(typeof(object), "count"),
+            new(typeof(object), "is_active"),
+            new(typeof(object), "created_date")
         };
         _mockReader.GetColumns(Arg.Any<string>()).Returns(columns);
 
@@ -76,28 +79,28 @@ public class QueryOptimizationTests
                 filePath.Contains(Path.DirectorySeparatorChar + "region=us"))
                 return new List<Dictionary<string, object?>>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Alice_2023_us", ["amount"] = 100m }
+                    new() { ["id"] = 1L, ["name"] = "Alice_2023_us", ["amount"] = 100m, ["count"] = 10, ["is_active"] = true, ["created_date"] = new DateTime(2023, 1, 1) }
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2023") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=eu"))
                 return new List<Dictionary<string, object?>>
                 {
-                    new() { ["id"] = 2L, ["name"] = "Bob_2023_eu", ["amount"] = 200m }
+                    new() { ["id"] = 2L, ["name"] = "Bob_2023_eu", ["amount"] = 200m, ["count"] = 20, ["is_active"] = true, ["created_date"] = new DateTime(2023, 1, 1) }
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2024") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=us"))
                 return new List<Dictionary<string, object?>>
                 {
-                    new() { ["id"] = 3L, ["name"] = "Charlie_2024_us", ["amount"] = 300m }
+                    new() { ["id"] = 3L, ["name"] = "Charlie_2024_us", ["amount"] = 300m, ["count"] = 30, ["is_active"] = true, ["created_date"] = new DateTime(2024, 1, 1) }
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2024") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=eu"))
                 return new List<Dictionary<string, object?>>
                 {
-                    new() { ["id"] = 4L, ["name"] = "David_2024_eu", ["amount"] = 400m }
+                    new() { ["id"] = 4L, ["name"] = "David_2024_eu", ["amount"] = 400m, ["count"] = 40, ["is_active"] = true, ["created_date"] = new DateTime(2024, 1, 1) }
                 };
 
             return new List<Dictionary<string, object?>>();
@@ -253,14 +256,18 @@ public class QueryOptimizationTests
             var columns = new List<Column>
             {
                 new(typeof(object), "id"),
-                new(typeof(object), "name")
+                new(typeof(object), "name"),
+                new(typeof(object), "amount"),
+                new(typeof(object), "count"),
+                new(typeof(object), "is_active"),
+                new(typeof(object), "created_date")
             };
             mockReader.GetColumns(Arg.Any<string>()).Returns(columns);
 
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(
                 new List<Dictionary<string, object?>>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Test" }
+                    new() { ["id"] = 1L, ["name"] = "Test", ["amount"] = 100m, ["count"] = 10, ["is_active"] = true, ["created_date"] = new DateTime(2024, 1, 1) }
                 });
 
             var table = new ParquetTable<TestEntity>(testPath, mockReader);

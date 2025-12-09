@@ -43,7 +43,7 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
         // Get optimized enumerable with partition pruning and column projection
         var sourceQueryable = _table.AsEnumerable(
             analysis.PartitionFilters.Count > 0 ? analysis.PartitionFilters : null,
-            analysis.RequestedColumns.Count > 0 ? analysis.RequestedColumns : null
+            analysis.RequestedColumns
         ).AsQueryable();
 
         var rewritten = ParquetExpressionReplacer<T>.Replace(expression, _table, sourceQueryable);
