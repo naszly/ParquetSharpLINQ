@@ -7,25 +7,32 @@
 [![License](https://img.shields.io/github/license/naszly/ParquetSharpLINQ.svg)](LICENSE)
 ![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-blue)
 
-A high-performance LINQ provider for querying Hive-style partitioned Parquet files with automatic query optimization and 100% source generation.
+A high-performance LINQ provider for querying Hive-partitioned and Delta Lake Parquet files with automatic query optimization.
 
 ## Features
 
-✅ **100% Source Generated** - Zero reflection overhead  
-✅ **Delta Lake Support** - Automatic Delta transaction log reading  
-✅ **Partition Pruning** - Only scans matching partitions (up to 180x faster)  
-✅ **Column Projection** - Only reads requested columns  
-✅ **Clean LINQ Syntax** - Use `Count(predicate)`, `Any(predicate)`, etc. directly  
-✅ **Type Safe** - Compile-time errors for invalid queries  
-✅ **DateTime/DateOnly Partitions** - Full support with automatic type conversion  
-✅ **Numeric Partitions** - Handles leading zeros (`"06"` matches `6`)  
-✅ **Long Path Support** - Handles paths over 260+ characters  
-✅ **Case-Insensitive** - Column names work regardless of casing  
-✅ **Azure Blob Storage** - Stream from Azure without downloading files  
+- **Source Generated Mappers** - Zero reflection for data mapping
+- **Delta Lake Support** - Automatic transaction log reading
+- **Partition Pruning** - Only scans matching partitions
+- **Column Projection** - Only reads requested columns
+- **Type Safe** - Compile-time validation
+- **Cross-Platform** - Works on Windows and Linux
+- **Azure Blob Storage** - Stream directly from cloud storage
 
 ## Quick Start
 
-### 1. Define Your Entity
+### Installation
+
+```bash
+dotnet add package ParquetSharpLINQ
+```
+
+For Azure Blob Storage support:
+```bash
+dotnet add package ParquetSharpLINQ.Azure
+```
+
+### Define Your Entity
 
 ```csharp
 using ParquetSharpLINQ.Attributes;
@@ -41,7 +48,6 @@ public class SalesRecord
     [ParquetColumn("total_amount")]
     public decimal TotalAmount { get; set; }
     
-    // Partition columns
     [ParquetColumn("year", IsPartition = true)]
     public int Year { get; set; }
     
@@ -50,112 +56,51 @@ public class SalesRecord
 }
 ```
 
-### 2. Query Your Data
+### Query Local Files
 
-**Local Files:**
 ```csharp
 using var table = new ParquetTable<SalesRecord>("/data/sales");
 
-// Clean syntax - partition pruning works automatically!
 var count = table.Count(s => s.Region == "eu-west" && s.Year == 2024);
-var hasData = table.Any(s => s.Year == 2024);
-var record = table.FirstOrDefault(s => s.Id == 12345);
-
-// Traditional syntax also works
-var euSales = table
-    .Where(s => s.Region == "eu-west" && s.Year == 2024)
-    .Where(s => s.TotalAmount > 1000)
-    .ToList();
+var results = table.Where(s => s.TotalAmount > 1000).ToList();
 ```
 
-**Delta Lake Tables:**
+### Query Delta Lake Tables
+
 ```csharp
-// Delta Lake tables work automatically - just point to the Delta table directory
+// Automatically detects and reads _delta_log/
 using var table = new ParquetTable<SalesRecord>("/data/delta-sales");
 
-// Delta transaction log is read automatically
-// Only active files (after updates/deletes) are queried
-var results = table
-    .Where(s => s.Year == 2024)
-    .ToList();
+var results = table.Where(s => s.Year == 2024).ToList();
 ```
 
-**Azure Blob Storage:**
+### Query Azure Blob Storage
+
 ```csharp
 using ParquetSharpLINQ.Azure;
 
-// Stream directly from Azure - no disk downloads!
 using var table = new AzureBlobParquetTable<SalesRecord>(
     connectionString: "DefaultEndpointsProtocol=https;AccountName=...",
-    containerName: "sales-data"
-);
+    containerName: "sales-data");
 
-// Same LINQ syntax works!
-var results = table
-    .Where(s => s.Year == 2024)
-    .Where(s => s.Region == "us-east")
-    .ToList();
-
-// Delta Lake on Azure also works automatically!
-using var deltaTable = new AzureBlobParquetTable<SalesRecord>(
-    connectionString: "DefaultEndpointsProtocol=https;AccountName=...",
-    containerName: "delta-sales"
-);
+var results = table.Where(s => s.Year == 2024).ToList();
 ```
 
 ## Performance
 
-### Partition Pruning Results
+Benchmark results with 180 partitions (900K records):
 
-With 180 partitions (900K records):
+| Query | Partitions Read | Speedup |
+|-------|----------------|---------|
+| Full scan | 180/180 | 1.0x |
+| `region='eu-west'` | 36/180 | ~5x |
+| `year=2024 AND region='eu-west'` | 12/180 | ~15x |
 
-| Query | Partitions Scanned | Data Reduction | Speedup |
-|-------|-------------------|----------------|---------|
-| Full scan | 180/180 (100%) | 0% | 1x |
-| `region='eu-west'` | 36/180 (20%) | 80% | ~5x |
-| `year=2024 AND region='eu-west'` | 12/180 (6.7%) | 93% | ~15x |
-
-**Real benchmark:** 60,000 records read in ~300ms (~190K records/sec)
-
-### Supported LINQ Methods with Partition Pruning
-
-All these methods support partition pruning when using predicates:
-
-- `Count(predicate)` / `LongCount(predicate)`
-- `Any(predicate)` / `All(predicate)`
-- `First(predicate)` / `FirstOrDefault(predicate)`
-- `Single(predicate)` / `SingleOrDefault(predicate)`
-- `Last(predicate)` / `LastOrDefault(predicate)`
-- `Where(predicate)` (traditional)
-
-### Column Projection
-
-Only reads the columns you need:
-
-```csharp
-// Reads only 3 of 8 columns - 62% I/O reduction
-var summary = table
-    .Select(s => new { s.Id, s.ProductName, s.TotalAmount })
-    .ToList();
-```
-
-## Installation
-
-**Core Library:**
-```bash
-dotnet add package ParquetSharp
-```
-
-**Azure Blob Storage Support (optional):**
-```bash
-dotnet add package Azure.Storage.Blobs
-# Add reference to ParquetSharpLINQ.Azure project
-```
-
-Add project references to `ParquetSharpLINQ` and `ParquetSharpLINQ.Generator`.
+Throughput: ~200K records/sec (60K records in ~300ms)
 
 ## Directory Structure
 
+Hive-style partitioning:
 ```
 /data/sales/
 ├── year=2023/
@@ -163,208 +108,117 @@ Add project references to `ParquetSharpLINQ` and `ParquetSharpLINQ.Generator`.
 │   │   └── data.parquet
 │   └── region=eu-west/
 │       └── data.parquet
-├── year=2024/
-│   ├── region=us-east/
-│   │   └── data.parquet
-│   └── region=eu-west/
-│       └── data.parquet
+└── year=2024/
+    └── region=us-east/
+        └── data.parquet
 ```
 
-## Key Features Explained
+Delta Lake:
+```
+/data/delta-sales/
+├── _delta_log/
+│   ├── 00000000000000000000.json
+│   └── 00000000000000000001.json
+└── year=2024/
+    └── data.parquet
+```
+
+## Key Features
+
+### Partition Pruning
+
+All LINQ methods with predicates support automatic partition pruning:
+- `Count(predicate)`, `LongCount(predicate)`
+- `Any(predicate)`, `All(predicate)` 
+- `First(predicate)`, `FirstOrDefault(predicate)`
+- `Single(predicate)`, `SingleOrDefault(predicate)`
+- `Last(predicate)`, `LastOrDefault(predicate)`
+- `Where(predicate)`
+
+### Column Projection
+
+Only requested columns are read:
+
+```csharp
+var summary = table
+    .Select(s => new { s.Id, s.ProductName })
+    .ToList();
+```
 
 ### Automatic Type Conversion
 
-Partition values are strings in directory names, but automatically converted to property types:
-
+Partition directory names (strings) are converted to property types:
 - `"06"` → `6` (int)
-- `"2024-12-07"` → `DateTime(2024, 12, 7)`
-- `"2024-12-07"` → `DateOnly(2024, 12, 7)`
+- `"2024-12-07"` → `DateTime` or `DateOnly`
 
-### Case-Insensitive Column Matching
+### Case-Insensitive Matching
 
-All column names are case-insensitive:
-
-```csharp
-// These all match the same column
-"clientId" == "ClientId" == "CLIENTID" == "client_id"
-```
-
-### Cross-Platform Partition Handling
-
-**Partition values are normalized to lowercase for consistency across platforms:**
+Column names and partition values are case-insensitive. For partition filtering, use lowercase values or case-insensitive comparison:
 
 ```csharp
-// Directories use lowercase (standard convention): region=us-east
+// Recommended: lowercase (matches normalized values)
+table.Where(s => s.Region == "us-east")
 
-// ✅ CORRECT: Use lowercase in queries to match normalized values
-table.Where(s => s.Region == "us-east")  // Works - returns records
-
-// ❌ INCORRECT: Uppercase won't match normalized lowercase values
-table.Where(s => s.Region == "US-EAST")  // Returns empty - case mismatch
-
-// ✅ ALTERNATIVE: Use case-insensitive comparison if you need flexibility
-table.Where(s => s.Region.Equals("US-EAST", StringComparison.OrdinalIgnoreCase))  // Works!
+// Alternative: case-insensitive comparison
+table.Where(s => s.Region.Equals("US-EAST", StringComparison.OrdinalIgnoreCase))
 ```
-
-**How it works:**
-- **Partition values are normalized to lowercase** when loaded into records
-- **Ensures consistent behavior** across Windows and Linux
-- **Matches standard convention** of using lowercase directory names
-
-**Cross-Platform Compatibility:**
-- **Windows:** File system is case-insensitive (`region=us-east` and `region=US-EAST` are the same)
-- **Linux:** File system is case-sensitive (they would be different directories)
-- **ParquetSharpLINQ:** Normalizes partition values to lowercase, ensuring queries work the same on both platforms
-
-**Best Practices:**
-
-1. **Use lowercase everywhere** (recommended):
-```csharp
-// Directory: year=2024/region=us-east
-table.Where(s => s.Region == "us-east")  // ✅ Best practice
-```
-
-2. **Use case-insensitive comparison** (when you need flexibility):
-```csharp
-// Allows any casing in your queries
-table.Where(s => s.Region.Equals("US-EAST", StringComparison.OrdinalIgnoreCase))  // ✅ Works
-table.Where(s => s.Region.Equals("Us-EaSt", StringComparison.OrdinalIgnoreCase))  // ✅ Works
-```
-
-3. **Avoid mixed casing in directory names**:
-```
-✅ Recommended: year=2024/region=us-east
-❌ Avoid: Year=2024/Region=US-EAST
-```
-
-
-### Safe Partition Handling
-
-The library uses a special prefix (`\0`) for partition values that's impossible in valid Parquet column names, preventing any collision with actual data.
 
 ### Delta Lake Support
 
-ParquetSharpLINQ automatically detects and reads Delta Lake tables by looking for the `_delta_log/` directory:
+Automatically detects `_delta_log/` directory and:
+- Reads transaction log files
+- Queries only active files (respects deletes/updates)
+- Falls back to Hive-style scanning if no Delta log found
 
-**Features:**
-- ✅ **Automatic detection** - Just point to a Delta table directory
-- ✅ **Transaction log reading** - Reads `_delta_log/*.json` files automatically
-- ✅ **Active files only** - Only queries files that haven't been deleted/updated
-- ✅ **Partition support** - Works with both partitioned and non-partitioned Delta tables
-- ✅ **Azure support** - Delta Lake works on Azure Blob Storage too
-- ✅ **No code changes** - Same LINQ API for both Hive and Delta tables
-
-**How it works:**
-```csharp
-// Delta table structure:
-// /data/sales/
-//   _delta_log/
-//     00000000000000000000.json  <- Transaction log
-//     00000000000000000001.json
-//   year=2024/
-//     part-00000.parquet
-//     part-00001.parquet (marked as removed in log)
-
-using var table = new ParquetTable<SalesRecord>("/data/sales");
-
-// Automatically:
-// 1. Detects _delta_log/ directory
-// 2. Reads transaction log
-// 3. Only queries active files (excludes part-00001.parquet)
-var results = table.ToList();
-```
-
-**Supported Delta features:**
-- ✅ Add/Remove actions (updates, deletes)
-- ✅ Metadata actions (table info)
-- ✅ Protocol actions (Delta version)
-- ✅ Partition values from transaction log
-- ❌ Time travel (not yet supported)
-- ❌ Checkpoints (uses JSON logs only)
-
-**Fallback behavior:**
-- If no `_delta_log/` directory is found, the library falls back to regular Hive-style scanning
-- No code changes needed - works transparently with both Delta and Hive tables
+**Supported:** Add, Remove, Metadata, Protocol actions  
+**Not supported:** Time travel, Checkpoints (uses JSON logs only)
 
 ## Testing
 
 ```bash
-# Run all tests
+# All tests
 dotnet test
 
-# Run unit tests only (fast)
+# Unit tests only
 dotnet test --filter "Category=Unit"
 
-# Run integration tests
+# Integration tests
 dotnet test --filter "Category=Integration"
-
-# Run Delta Lake integration tests
-dotnet test --filter "Category=Integration&FullyQualifiedName~Delta"
-
-# Run Azure integration tests (requires Azurite)
-dotnet test --filter "FullyQualifiedName~AzureDeltaLakeIntegrationTests"
 ```
 
-
-See [ParquetSharpLINQ.Tests/README.md](ParquetSharpLINQ.Tests/README.md) for complete testing guide.
+See [ParquetSharpLINQ.Tests/README.md](ParquetSharpLINQ.Tests/README.md) for details.
 
 ## Benchmarks
 
 ```bash
 cd ParquetSharpLINQ.Benchmarks
 
-# Generate test data (900K records across 180 partitions)
-dotnet run -c Release -- generate ./benchmark_data 5000
+# Generate test data
+dotnet run -c Release -- generate ./data 5000
 
-# Run performance analysis
-dotnet run -c Release -- analyze ./benchmark_data
-
-# Cleanup
-dotnet run -c Release -- cleanup ./benchmark_data
+# Run benchmarks  
+dotnet run -c Release -- analyze ./data
 ```
 
-See [ParquetSharpLINQ.Benchmarks/README.md](ParquetSharpLINQ.Benchmarks/README.md) for detailed performance testing guide.
-
-## Documentation
-
-- **[ParquetSharpLINQ.Azure/README.md](ParquetSharpLINQ.Azure/README.md)** - Azure Blob Storage support
-- **[ParquetSharpLINQ.Benchmarks/README.md](ParquetSharpLINQ.Benchmarks/README.md)** - Performance benchmarks
-- **[ParquetSharpLINQ.Tests/README.md](ParquetSharpLINQ.Tests/README.md)** - Test suite guide
-- **[.github/workflows/README.md](.github/workflows/README.md)** - CI/CD and release process
-
-## CI/CD
-
-This project uses GitHub Actions for automated testing and releases:
-
-- **Build & Test** - Runs on every push and PR
-- **Integration Tests** - Includes Delta Lake and Azure tests with Azurite
-- **Release** - Automatic NuGet publishing on version tags
-
-### Quick Release
-
-```bash
-# Create and push a version tag
-git tag v1.0.0
-git push origin v1.0.0
-
-# GitHub Actions will automatically:
-# 1. Build and test
-# 2. Create NuGet packages
-# 3. Publish to NuGet.org
-# 4. Create GitHub Release
-```
-
-See [.github/workflows/README.md](.github/workflows/README.md) for complete CI/CD documentation.
+See [ParquetSharpLINQ.Benchmarks/README.md](ParquetSharpLINQ.Benchmarks/README.md) for details.
 
 ## Requirements
 
-- .NET 10.0
-- ParquetSharp 21.0.0
+- .NET 8.0 or higher
+- ParquetSharp 21.0.0+
 
 ## Architecture
 
-- **ParquetSharpLINQ** - Core library with LINQ query provider
-- **ParquetSharpLINQ.Azure** - Azure Blob Storage support (optional)
-- **ParquetSharpLINQ.Benchmarks** - Performance testing and benchmarks
-- **ParquetSharpLINQ.Generator** - Source generator for zero-reflection mappers
+- **ParquetSharpLINQ** - Core LINQ query provider
+- **ParquetSharpLINQ.Generator** - Source generator for mappers
+- **ParquetSharpLINQ.Azure** - Azure Blob Storage support
 - **ParquetSharpLINQ.Tests** - Unit and integration tests
+- **ParquetSharpLINQ.Benchmarks** - Performance testing
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Author
+
+Kornél Naszály - [GitHub](https://github.com/naszly/ParquetSharpLINQ)
