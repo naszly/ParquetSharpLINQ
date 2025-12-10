@@ -107,6 +107,23 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
                 partitions = PrunePartitions(partitions, mappedFilters);
             }
 
+            // Optimization: If all requested columns are partition columns, return data from partition metadata only
+            if (columns != null && columns.Count > 0 && AreAllColumnsPartitions(columns))
+            {
+                foreach (var partition in partitions)
+                {
+                    // Create a row with only partition values - no need to read Parquet files!
+                    var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var (key, value) in partition.Values)
+                    {
+                        var partitionKey = $"{PartitionConstants.PartitionPrefix}{key}";
+                        row[partitionKey] = NormalizePartitionValue(value);
+                    }
+                    yield return activeMapper.Map(row);
+                }
+                yield break; // Early exit - no file reading needed!
+            }
+
             foreach (var partition in partitions)
             {
                 // Use explicit file list if available (Delta Lake), otherwise enumerate directory (Hive)
@@ -329,5 +346,22 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
         }
 
         return map;
+    }
+
+    private static bool AreAllColumnsPartitions(IReadOnlyCollection<string> requestedColumns)
+    {
+        var properties = typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public);
+        var partitionColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var property in properties)
+        {
+            var attr = property.GetCustomAttribute<ParquetColumnAttribute>();
+            if (attr?.IsPartition == true)
+            {
+                partitionColumns.Add(property.Name);
+            }
+        }
+
+        return requestedColumns.All(col => partitionColumns.Contains(col));
     }
 }
