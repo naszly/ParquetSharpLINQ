@@ -25,17 +25,12 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     private readonly long _maxCacheSizeBytes;
     private long _currentCacheSizeBytes;
 
-    /// <summary>
-    /// Default maximum cache size: 1 GB
-    /// </summary>
-    private const long DefaultMaxCacheSizeBytes = 1_073_741_824;
-
     private const int TaskCleanupThresholdMultiplier = 2;
 
     public AzureBlobParquetReader(
         string connectionString, 
         string containerName,
-        long maxCacheSizeBytes = DefaultMaxCacheSizeBytes)
+        long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
@@ -48,7 +43,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
 
     public AzureBlobParquetReader(
         BlobContainerClient containerClient,
-        long maxCacheSizeBytes = DefaultMaxCacheSizeBytes)
+        long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes)
     {
         _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCacheSizeBytes);
