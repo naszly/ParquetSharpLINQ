@@ -4,18 +4,18 @@ using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Azure;
 
+#if !NET9_0_OR_GREATER
+using Lock = System.Object;
+#endif
+
 /// <summary>
 /// Parquet reader that streams files from Azure Blob Storage without downloading to disk.
 /// Uses in-memory caching with LRU eviction for performance optimization.
 /// Delegates actual Parquet reading to ParquetStreamReader.
 /// </summary>
-public sealed class AzureBlobParquetReader : IParquetReader, IDisposable
+public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
 {
-#if NET9_0_OR_GREATER
     private readonly Lock _streamCacheLock = new();
-#else
-    private readonly object _streamCacheLock = new();
-#endif
     private readonly BlobContainerClient _containerClient;
     private readonly Dictionary<string, byte[]> _streamCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _cacheAccessOrder = new();
@@ -29,6 +29,8 @@ public sealed class AzureBlobParquetReader : IParquetReader, IDisposable
     /// Default maximum cache size: 1 GB
     /// </summary>
     private const long DefaultMaxCacheSizeBytes = 1_073_741_824;
+
+    private const int TaskCleanupThresholdMultiplier = 2;
 
     public AzureBlobParquetReader(
         string connectionString, 
@@ -103,16 +105,7 @@ public sealed class AzureBlobParquetReader : IParquetReader, IDisposable
             return CreateStreamFromBytes(cachedData);
         }
 
-        // Get or create download lock for this specific blob
-        SemaphoreSlim downloadLock;
-        lock (_streamCacheLock)
-        {
-            if (!_downloadLocks.TryGetValue(blobPath, out downloadLock!))
-            {
-                downloadLock = new SemaphoreSlim(1, 1);
-                _downloadLocks[blobPath] = downloadLock;
-            }
-        }
+        var downloadLock = GetOrCreateDownloadLock(blobPath);
 
         // Acquire blob-specific lock to prevent concurrent downloads
         downloadLock.Wait();
@@ -166,6 +159,35 @@ public sealed class AzureBlobParquetReader : IParquetReader, IDisposable
     }
 
     /// <summary>
+    /// Checks if a blob is already cached without updating LRU order.
+    /// Used for fast-path checks in prefetch scenarios.
+    /// </summary>
+    private bool IsCached(string blobPath)
+    {
+        lock (_streamCacheLock)
+        {
+            return _streamCache.ContainsKey(blobPath);
+        }
+    }
+
+    /// <summary>
+    /// Gets or creates a download lock for the specified blob path.
+    /// Ensures only one download happens per blob at a time.
+    /// </summary>
+    private SemaphoreSlim GetOrCreateDownloadLock(string blobPath)
+    {
+        lock (_streamCacheLock)
+        {
+            if (!_downloadLocks.TryGetValue(blobPath, out var downloadLock))
+            {
+                downloadLock = new SemaphoreSlim(1, 1);
+                _downloadLocks[blobPath] = downloadLock;
+            }
+            return downloadLock;
+        }
+    }
+
+    /// <summary>
     /// Downloads the specified blob to a byte array.
     /// </summary>
     /// <returns>A byte array containing the blob data, or null if the blob doesn't exist.</returns>
@@ -180,6 +202,25 @@ public sealed class AzureBlobParquetReader : IParquetReader, IDisposable
 
         using var memoryStream = new MemoryStream();
         blobClient.DownloadTo(memoryStream);
+        return memoryStream.ToArray();
+    }
+
+    /// <summary>
+    /// Asynchronously downloads the specified blob to a byte array.
+    /// </summary>
+    /// <returns>A byte array containing the blob data, or null if the blob doesn't exist.</returns>
+    private async Task<byte[]?> DownloadBlobToMemoryAsync(string blobPath)
+    {
+        var blobClient = _containerClient.GetBlobClient(blobPath);
+
+        var exists = await blobClient.ExistsAsync();
+        if (!exists)
+        {
+            return null;
+        }
+
+        using var memoryStream = new MemoryStream();
+        await blobClient.DownloadToAsync(memoryStream);
         return memoryStream.ToArray();
     }
 
@@ -264,6 +305,92 @@ public sealed class AzureBlobParquetReader : IParquetReader, IDisposable
         foreach (var row in ParquetStreamReader.ReadRowsFromStream(stream, columns))
         {
             yield return row;
+        }
+    }
+
+    /// <summary>
+    /// Prefetches multiple blobs into cache in parallel.
+    /// This is useful for warming the cache before enumeration.
+    /// Uses a producer-consumer pattern to limit concurrent task creation and memory usage.
+    /// </summary>
+    public async Task PrefetchAsync(IEnumerable<string> filePaths, int maxParallelism = ParquetConfiguration.DefaultPrefetchParallelism)
+    {
+        ArgumentNullException.ThrowIfNull(filePaths);
+
+        using var semaphore = new SemaphoreSlim(maxParallelism, maxParallelism);
+        var activeTasks = new Queue<Task>(maxParallelism * TaskCleanupThresholdMultiplier);
+        
+        foreach (var blobPath in filePaths)
+        {
+            await semaphore.WaitAsync();
+            
+            var task = PrefetchWithSemaphoreAsync(blobPath, semaphore);
+            activeTasks.Enqueue(task);
+            
+            if (activeTasks.Count >= maxParallelism * TaskCleanupThresholdMultiplier)
+            {
+                while (activeTasks.Count > 0 && activeTasks.Peek().IsCompleted)
+                {
+                    _ = activeTasks.Dequeue();
+                }
+            }
+        }
+        
+        // Wait for all remaining tasks to complete
+        await Task.WhenAll(activeTasks);
+    }
+
+    /// <summary>
+    /// Helper method to prefetch a blob with semaphore-based throttling.
+    /// </summary>
+    private async Task PrefetchWithSemaphoreAsync(string blobPath, SemaphoreSlim semaphore)
+    {
+        try
+        {
+            await PrefetchBlobAsync(blobPath);
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Downloads and caches a single blob without creating a MemoryStream wrapper.
+    /// Optimized for prefetch scenarios where the stream object is not needed.
+    /// </summary>
+    private async Task PrefetchBlobAsync(string blobPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blobPath);
+
+        // Fast path: check if already cached
+        if (IsCached(blobPath))
+        {
+            return;
+        }
+
+        var downloadLock = GetOrCreateDownloadLock(blobPath);
+
+        // Acquire blob-specific lock to prevent concurrent downloads
+        await downloadLock.WaitAsync();
+        try
+        {
+            // Double-check cache after acquiring lock
+            if (IsCached(blobPath))
+            {
+                return;
+            }
+
+            // Download and cache (no stream creation)
+            var downloadedData = await DownloadBlobToMemoryAsync(blobPath);
+            if (downloadedData != null)
+            {
+                CacheData(blobPath, downloadedData);
+            }
+        }
+        finally
+        {
+            downloadLock.Release();
         }
     }
 

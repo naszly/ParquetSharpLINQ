@@ -13,6 +13,8 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
     private readonly IParquetMapper<T> _mapper;
     private readonly IParquetReader _reader;
     private readonly string _rootPath;
+    private readonly SemaphoreSlim _prefetchLock = new(1, 1);
+    private bool _isPrefetched;
 
     /// <summary>
     /// Creates a new ParquetTable for querying Parquet files.
@@ -50,6 +52,7 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
     {
         var reader = _reader as IDisposable;
         reader?.Dispose();
+        _prefetchLock.Dispose();
     }
 
     public Type ElementType => typeof(T);
@@ -81,6 +84,85 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
     public IEnumerable<T> AsEnumerable()
     {
         return AsEnumerable(null, null);
+    }
+
+    /// <summary>
+    /// Converts the table to an async enumerable for streaming results asynchronously.
+    /// This method uses an optimized async execution path without blocking threads.
+    /// </summary>
+    public async IAsyncEnumerable<T> AsAsyncEnumerable()
+    {
+        if (CanUsePrefetch())
+        {
+            await PrefetchAsync(null);
+        }
+
+        foreach (var item in AsEnumerable())
+        {
+            yield return item;
+        }
+    }
+
+    /// <summary>
+    /// Checks if the reader supports async prefetching.
+    /// </summary>
+    internal bool CanUsePrefetch()
+    {
+        return _reader is IAsyncParquetReader;
+    }
+
+    /// <summary>
+    /// Prefetches files into cache without enumerating the data.
+    /// Only works if the reader implements IAsyncParquetReader.
+    /// </summary>
+    internal async Task PrefetchAsync(
+        IReadOnlyDictionary<string, object?>? partitionFilters,
+        int prefetchParallelism = ParquetConfiguration.DefaultPrefetchParallelism)
+    {
+        if (_reader is not IAsyncParquetReader asyncReader)
+        {
+            return;
+        }
+
+        if (_isPrefetched && partitionFilters == null)
+        {
+            return;
+        }
+
+        await _prefetchLock.WaitAsync();
+        try
+        {
+            if (_isPrefetched && partitionFilters == null)
+            {
+                return;
+            }
+
+            var partitions = DiscoverPartitions();
+
+            if (partitionFilters != null && partitionFilters.Count > 0)
+            {
+                var mappedFilters = MapPropertyNamesToColumnNames(partitionFilters);
+                partitions = PrunePartitions(partitions, mappedFilters);
+            }
+
+            var allFiles = new List<string>();
+            foreach (var partition in partitions)
+            {
+                var filesToRead = partition.Files ?? _reader.ListFiles(partition.Path);
+                allFiles.AddRange(filesToRead);
+            }
+
+            await asyncReader.PrefetchAsync(allFiles, prefetchParallelism);
+
+            if (partitionFilters == null)
+            {
+                _isPrefetched = true;
+            }
+        }
+        finally
+        {
+            _prefetchLock.Release();
+        }
     }
 
     /// <summary>
