@@ -13,8 +13,7 @@ public sealed class Partition
     public IReadOnlyDictionary<string, string> Values { get; init; } = new Dictionary<string, string>();
 
     /// <summary>
-    ///     Optional: Explicit list of files to read (used by Delta Lake).
-    ///     If null, all parquet files in Path will be enumerated (Hive-style).
+    ///     List of parquet files within this partition.
     /// </summary>
-    public IReadOnlyList<string>? Files { get; init; }
+    public required IReadOnlyList<string> Files { get; init; }
 }

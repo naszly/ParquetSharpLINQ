@@ -53,13 +53,6 @@ public class QueryOptimizationTests
 
     private void SetupMockReader()
     {
-        _mockReader.ListFiles(Arg.Any<string>()).Returns(callInfo =>
-        {
-            var path = callInfo.Arg<string>();
-            var parquetFile = Path.Combine(path, "data.parquet");
-            return File.Exists(parquetFile) ? new[] { parquetFile } : Array.Empty<string>();
-        });
-
         var columns = new List<Column>
         {
             new(typeof(object), "id"),
@@ -246,12 +239,6 @@ public class QueryOptimizationTests
             File.WriteAllText(Path.Combine(partitionPath, "data.parquet"), "dummy");
 
             var mockReader = Substitute.For<IParquetReader>();
-            mockReader.ListFiles(Arg.Any<string>()).Returns(callInfo =>
-            {
-                var path = callInfo.Arg<string>();
-                var parquetFile = Path.Combine(path, "data.parquet");
-                return File.Exists(parquetFile) ? new[] { parquetFile } : Array.Empty<string>();
-            });
 
             var columns = new List<Column>
             {
@@ -304,12 +291,6 @@ public class QueryOptimizationTests
             File.WriteAllText(Path.Combine(partitionPath, "data.parquet"), "dummy");
 
             var mockReader = Substitute.For<IParquetReader>();
-            mockReader.ListFiles(Arg.Any<string>()).Returns(callInfo =>
-            {
-                var path = callInfo.Arg<string>();
-                var parquetFile = Path.Combine(path, "data.parquet");
-                return File.Exists(parquetFile) ? new[] { parquetFile } : Array.Empty<string>();
-            });
 
             var columns = new List<Column>
             {
@@ -358,12 +339,6 @@ public class QueryOptimizationTests
             File.WriteAllText(Path.Combine(partitionPath, "data.parquet"), "dummy");
 
             var mockReader = Substitute.For<IParquetReader>();
-            mockReader.ListFiles(Arg.Any<string>()).Returns(callInfo =>
-            {
-                var path = callInfo.Arg<string>();
-                var parquetFile = Path.Combine(path, "data.parquet");
-                return File.Exists(parquetFile) ? new[] { parquetFile } : Array.Empty<string>();
-            });
 
             var columns = new List<Column>
             {

@@ -148,7 +148,7 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
             var allFiles = new List<string>();
             foreach (var partition in partitions)
             {
-                var filesToRead = partition.Files ?? _reader.ListFiles(partition.Path);
+                var filesToRead = partition.Files;
                 allFiles.AddRange(filesToRead);
             }
 
@@ -208,8 +208,7 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
 
             foreach (var partition in partitions)
             {
-                // Use explicit file list if available (Delta Lake), otherwise enumerate directory (Hive)
-                var filesToRead = partition.Files ?? _reader.ListFiles(partition.Path);
+                var filesToRead = partition.Files;
                 
                 foreach (var file in filesToRead)
                 {

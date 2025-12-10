@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ParquetSharpLINQ.Delta;
 using ParquetSharpLINQ.Models;
 
@@ -84,7 +85,8 @@ public static class PartitionDiscovery
         foreach (var dir in directories)
         {
             var parquetFiles = Directory.EnumerateFiles(dir)
-                .Where(HivePartitionParser.IsParquetFile);
+                .Where(HivePartitionParser.IsParquetFile)
+                .ToImmutableArray();
 
             if (!parquetFiles.Any())
             {
@@ -96,7 +98,7 @@ public static class PartitionDiscovery
 
             var values = HivePartitionParser.ParsePartitionValues(relative);
 
-            yield return new Partition { Path = Path.GetFullPath(dir), Values = values };
+            yield return new Partition { Path = Path.GetFullPath(dir), Values = values, Files = parquetFiles};
         }
     }
 }

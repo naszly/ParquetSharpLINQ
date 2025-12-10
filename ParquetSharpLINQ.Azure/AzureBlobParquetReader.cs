@@ -68,21 +68,6 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         }
     }
 
-    public IEnumerable<string> ListFiles(string path)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-
-        var blobs = _containerClient.GetBlobs(prefix: path);
-
-        foreach (var blob in blobs)
-        {
-            if (HivePartitionParser.IsParquetFile(blob.Name))
-            {
-                yield return blob.Name;
-            }
-        }
-    }
-
     /// <summary>
     /// Opens a stream to the specified blob path. Returns a cached copy if available.
     /// Uses double-checked locking to prevent duplicate downloads.

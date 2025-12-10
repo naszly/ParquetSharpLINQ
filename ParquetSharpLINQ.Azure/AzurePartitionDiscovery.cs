@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Azure.Storage.Blobs;
 using ParquetSharpLINQ.Models;
 
@@ -109,6 +110,7 @@ public static class AzurePartitionDiscovery
     {
         var blobs = containerClient.GetBlobs(prefix: blobPrefix);
         var partitionPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var files = new List<string>();
 
         foreach (var blob in blobs)
         {
@@ -116,6 +118,8 @@ public static class AzurePartitionDiscovery
             {
                 continue;
             }
+            
+            files.Add(blob.Name);
 
             var directory = GetDirectory(blob.Name);
             if (!string.IsNullOrEmpty(directory))
@@ -132,8 +136,12 @@ public static class AzurePartitionDiscovery
                 relativePath = relativePath.Substring(blobPrefix.Length);
             }
             
+            var filesArray = files
+                .Where(f => GetDirectory(f).Equals(path, StringComparison.OrdinalIgnoreCase))
+                .ToImmutableArray();
+            
             var values = HivePartitionParser.ParsePartitionValues(relativePath);
-            yield return new Partition { Path = path, Values = values };
+            yield return new Partition { Path = path, Values = values, Files = filesArray};
         }
     }
 

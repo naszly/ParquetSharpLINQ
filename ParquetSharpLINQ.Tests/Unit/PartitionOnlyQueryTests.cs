@@ -33,13 +33,6 @@ public class PartitionOnlyQueryTests
             var mockReader = Substitute.For<IParquetReader>();
             var filesWereRead = false;
 
-            mockReader.ListFiles(Arg.Any<string>()).Returns(callInfo =>
-            {
-                var path = callInfo.Arg<string>();
-                var file = Path.Combine(path, "data.parquet");
-                return File.Exists(file) ? new[] { file } : Array.Empty<string>();
-            });
-
             // This should NEVER be called for partition-only queries
             mockReader.GetColumns(Arg.Any<string>()).Returns(callInfo =>
             {
@@ -96,13 +89,6 @@ public class PartitionOnlyQueryTests
             var mockReader = Substitute.For<IParquetReader>();
             var filesWereRead = false;
 
-            mockReader.ListFiles(Arg.Any<string>()).Returns(callInfo =>
-            {
-                var path = callInfo.Arg<string>();
-                var file = Path.Combine(path, "data.parquet");
-                return File.Exists(file) ? new[] { file } : Array.Empty<string>();
-            });
-
             mockReader.GetColumns(Arg.Any<string>()).Returns(callInfo =>
             {
                 filesWereRead = true;
@@ -156,14 +142,7 @@ public class PartitionOnlyQueryTests
 
             var mockReader = Substitute.For<IParquetReader>();
             var filesWereRead = false;
-
-            mockReader.ListFiles(Arg.Any<string>()).Returns(callInfo =>
-            {
-                var path = callInfo.Arg<string>();
-                var file = Path.Combine(path, "data.parquet");
-                return File.Exists(file) ? new[] { file } : Array.Empty<string>();
-            });
-
+            
             mockReader.GetColumns(Arg.Any<string>()).Returns(callInfo =>
             {
                 filesWereRead = true;

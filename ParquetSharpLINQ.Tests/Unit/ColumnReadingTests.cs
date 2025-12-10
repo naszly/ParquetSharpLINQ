@@ -24,7 +24,6 @@ public class ColumnReadingTests
             var mockReader = Substitute.For<IParquetReader>();
             
             // Mock returns file with 5 columns (more than entity maps)
-            mockReader.ListFiles(Arg.Any<string>()).Returns(new[] { filePath });
             mockReader.GetColumns(Arg.Any<string>()).Returns(new List<Column>
             {
                 new(typeof(object), "id"),
@@ -88,7 +87,6 @@ public class ColumnReadingTests
             File.WriteAllText(filePath, "dummy");
 
             var mockReader = Substitute.For<IParquetReader>();
-            mockReader.ListFiles(Arg.Any<string>()).Returns(new[] { filePath });
             mockReader.GetColumns(Arg.Any<string>()).Returns(new List<Column>
             {
                 new(typeof(object), "id"),

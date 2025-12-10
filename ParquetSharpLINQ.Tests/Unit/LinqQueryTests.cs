@@ -32,8 +32,6 @@ public class LinqQueryTests
 
     private void SetupMockReader()
     {
-        _mockReader.ListFiles(Arg.Any<string>()).Returns(["/test/data/file.parquet"]);
-
         var columns = new List<Column>
         {
             new(typeof(object), "id"),
