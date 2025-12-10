@@ -45,7 +45,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         BlobContainerClient containerClient,
         long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes)
     {
-        _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
+        _containerClient = containerClient;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCacheSizeBytes);
         
         _maxCacheSizeBytes = maxCacheSizeBytes;

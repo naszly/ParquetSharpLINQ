@@ -100,7 +100,7 @@ public abstract class DeltaLakeIntegrationTestsBase
             .ToList();
 
         Assert.That(results, Has.Count.EqualTo(20));
-        Assert.That(results.All(r => r.Region.StartsWith("us-")), Is.True);
+        Assert.That(results.All(r => r.Region?.StartsWith("us-") ?? false), Is.True);
     }
 
     [Test]

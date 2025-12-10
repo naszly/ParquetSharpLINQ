@@ -1,5 +1,5 @@
+using System.Diagnostics;
 using Azure.Storage.Blobs;
-using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Azure;
 
 namespace ParquetSharpLINQ.Tests.Integration;
@@ -85,6 +85,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
             Assert.Fail($"Unknown table name: {tableName}");
         }
 
+        Debug.Assert(containerName != null, nameof(containerName) + " != null");
         return new AzureBlobParquetTable<T>(AzuriteConnectionString, containerName);
     }
 
