@@ -15,9 +15,13 @@ public static class AzurePartitionDiscovery
     /// Otherwise, scans blobs for Parquet files (Hive-style).
     /// </summary>
     /// <param name="containerClient">Azure Blob Container client</param>
+    /// <param name="deltaLogReader">Reusable Delta log reader for caching</param>
     /// <param name="blobPrefix">Optional blob prefix to limit discovery to a subfolder</param>
     /// <returns>Enumerable of discovered partitions</returns>
-    public static IEnumerable<Partition> Discover(BlobContainerClient containerClient, string blobPrefix = "")
+    public static IEnumerable<Partition> Discover(
+        BlobContainerClient containerClient,
+        Lazy<AzureDeltaLogReader> deltaLogReader,
+        string blobPrefix = "")
     {
         ArgumentNullException.ThrowIfNull(containerClient);
 
@@ -25,7 +29,7 @@ public static class AzurePartitionDiscovery
 
         if (IsDeltaTable(containerClient, blobPrefix))
         {
-            return DiscoverFromDeltaLog(containerClient, blobPrefix);
+            return DiscoverFromDeltaLog(blobPrefix, deltaLogReader.Value);
         }
 
         return DiscoverFromBlobs(containerClient, blobPrefix);
@@ -63,10 +67,9 @@ public static class AzurePartitionDiscovery
         return deltaLogBlobs.Any();
     }
 
-    private static IEnumerable<Partition> DiscoverFromDeltaLog(BlobContainerClient containerClient, string blobPrefix)
+    private static IEnumerable<Partition> DiscoverFromDeltaLog(string blobPrefix, AzureDeltaLogReader deltaLogReader)
     {
-        var deltaReader = new AzureDeltaLogReader(containerClient, blobPrefix);
-        var snapshot = deltaReader.GetLatestSnapshot();
+        var snapshot = deltaLogReader.GetLatestSnapshot();
         var partitionGroups = new Dictionary<string, (Dictionary<string, string> Values, List<string> Files)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var addAction in snapshot.ActiveFiles)

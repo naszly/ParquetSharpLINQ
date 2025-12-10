@@ -11,6 +11,7 @@ public sealed class AzureBlobParquetTable<T> : ParquetTable<T> where T : new()
 {
     private readonly BlobContainerClient _containerClient;
     private readonly string _blobPrefix;
+    private readonly Lazy<AzureDeltaLogReader> _deltaLogReader;
 
     /// <summary>
     /// Creates a new Azure Blob Storage-backed Parquet table.
@@ -32,6 +33,7 @@ public sealed class AzureBlobParquetTable<T> : ParquetTable<T> where T : new()
         var serviceClient = new BlobServiceClient(connectionString);
         _containerClient = serviceClient.GetBlobContainerClient(containerName);
         _blobPrefix = blobPrefix;
+        _deltaLogReader = new Lazy<AzureDeltaLogReader>(() => new AzureDeltaLogReader(_containerClient, blobPrefix));
     }
 
     /// <summary>
@@ -51,15 +53,29 @@ public sealed class AzureBlobParquetTable<T> : ParquetTable<T> where T : new()
     {
         _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
         _blobPrefix = blobPrefix;
+        _deltaLogReader = new Lazy<AzureDeltaLogReader>(() => new AzureDeltaLogReader(_containerClient, blobPrefix));
     }
 
     /// <summary>
     /// Discovers partitions from Azure Blob Storage.
     /// Overrides base implementation to use Azure-specific discovery.
+    /// Creates and caches a Delta log reader if needed for Delta tables.
     /// </summary>
     public override IEnumerable<Partition> DiscoverPartitions()
     {
-        return AzurePartitionDiscovery.Discover(_containerClient, _blobPrefix);
+        return AzurePartitionDiscovery.Discover(_containerClient, _deltaLogReader, _blobPrefix);
+    }
+
+    /// <summary>
+    /// Clears the Delta log cache, forcing a fresh read from Azure Blob Storage on next access.
+    /// Only has an effect if the table is a Delta table and the Delta log reader has been initialized.
+    /// </summary>
+    public void ClearDeltaLogCache()
+    {
+        if (_deltaLogReader.IsValueCreated)
+        {
+            _deltaLogReader.Value.ClearCache();
+        }
     }
 }
 

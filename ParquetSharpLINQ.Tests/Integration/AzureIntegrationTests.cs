@@ -255,7 +255,8 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_PartitionDiscovery_FindsAllPartitions()
     {
-        var partitions = AzurePartitionDiscovery.Discover(ContainerClient).ToList();
+        Lazy<AzureDeltaLogReader> deltaLogReader = new(() => new AzureDeltaLogReader(ContainerClient));
+        var partitions = AzurePartitionDiscovery.Discover(ContainerClient, deltaLogReader).ToList();
 
         var expectedPartitionCount = Years * MonthsPerYear * Regions;
         Assert.That(partitions, Has.Count.EqualTo(expectedPartitionCount));
