@@ -215,9 +215,14 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
             return null;
         }
 
-        using var memoryStream = new MemoryStream();
-        blobClient.DownloadTo(memoryStream);
-        return memoryStream.ToArray();
+        var properties = blobClient.GetProperties();
+        var blobSize = properties.Value.ContentLength;
+        var streamCapacity = (int)Math.Min(blobSize, int.MaxValue);
+
+        using var memoryStream = new MemoryStream(streamCapacity);
+        var downloadOptions = CreateDownloadOptions(blobSize);
+        blobClient.DownloadTo(memoryStream, downloadOptions);
+        return memoryStream.GetBuffer();
     }
 
     /// <summary>
