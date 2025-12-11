@@ -269,7 +269,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
                 {
                     MaximumTransferSize = 1 * MegaByte,
                     InitialTransferSize = 1 * MegaByte,
-                    MaximumConcurrency = 4
+                    MaximumConcurrency = 2
                 }
             },
             < 100 * MegaByte => new BlobDownloadToOptions
@@ -278,7 +278,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
                 {
                     MaximumTransferSize = 4 * MegaByte,
                     InitialTransferSize = 4 * MegaByte,
-                    MaximumConcurrency = 8
+                    MaximumConcurrency = 4
                 }
             },
             _ => new BlobDownloadToOptions
@@ -287,7 +287,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
                 {
                     MaximumTransferSize = 8 * MegaByte,
                     InitialTransferSize = 8 * MegaByte,
-                    MaximumConcurrency = 16
+                    MaximumConcurrency = 8
                 }
             }
         };
