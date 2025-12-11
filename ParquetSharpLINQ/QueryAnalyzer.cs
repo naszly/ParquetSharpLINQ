@@ -150,6 +150,14 @@ internal sealed class QueryAnalyzer
                     propertyName = rightMember.Member.Name;
                     value = leftConst.Value;
                     break;
+                case { Left: MemberExpression leftMember }:
+                    propertyName = leftMember.Member.Name;
+                    value = TryEvaluateExpression(binary.Right);
+                    break;
+                case { Right: MemberExpression rightMember }:
+                    propertyName = rightMember.Member.Name;
+                    value = TryEvaluateExpression(binary.Left);
+                    break;
             }
 
             if (propertyName != null)
@@ -157,6 +165,30 @@ internal sealed class QueryAnalyzer
         }
 
         AnalyzeBinaryExpression(binary);
+    }
+
+    /// <summary>
+    /// Attempts to evaluate an expression to extract its runtime value.
+    /// Handles closure members, fields, and other compile-time constant expressions.
+    /// </summary>
+    private static object? TryEvaluateExpression(Expression expression)
+    {
+        try
+        {
+            if (expression is ConstantExpression constant)
+            {
+                return constant.Value;
+            }
+
+            var lambda = Expression.Lambda<Func<object?>>(
+                Expression.Convert(expression, typeof(object)));
+            var compiled = lambda.Compile();
+            return compiled();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void AnalyzeBinaryExpression(BinaryExpression binary)
