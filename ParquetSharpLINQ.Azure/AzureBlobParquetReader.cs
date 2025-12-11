@@ -1,4 +1,8 @@
+using Azure.Core;
+using Azure.Core.Pipeline;
+using Azure.Storage;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using ParquetSharp;
 using ParquetSharpLINQ.ParquetSharp;
 
@@ -15,6 +19,8 @@ using Lock = System.Object;
 /// </summary>
 public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
 {
+    private const int MegaByte = 1024 * 1024;
+    
     private readonly Lock _streamCacheLock = new();
     private readonly BlobContainerClient _containerClient;
     private readonly Dictionary<string, byte[]> _streamCache = new(StringComparer.OrdinalIgnoreCase);
@@ -33,8 +39,39 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCacheSizeBytes);
+        
+        var socketsHttpHandler = new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+            MaxConnectionsPerServer = 100,
+            EnableMultipleHttp2Connections = true,
+            ConnectTimeout = TimeSpan.FromSeconds(30),
+            ResponseDrainTimeout = TimeSpan.FromSeconds(2)
+        };
 
-        var serviceClient = new BlobServiceClient(connectionString);
+        var httpClient = new HttpClient(socketsHttpHandler)
+        {
+            Timeout = TimeSpan.FromMinutes(10),
+            DefaultRequestVersion = new Version(2, 0)
+        };
+
+        var blobClientOptions = new BlobClientOptions
+        {
+            Transport = new HttpClientTransport(httpClient),
+            Retry =
+            {
+                MaxRetries = 3,
+                Delay = TimeSpan.FromSeconds(1),
+                MaxDelay = TimeSpan.FromSeconds(10),
+                Mode = RetryMode.Exponential,
+                NetworkTimeout = TimeSpan.FromSeconds(100)
+            },
+            Diagnostics = { IsLoggingEnabled = false }
+        };
+
+        
+        var serviceClient = new BlobServiceClient(connectionString, blobClientOptions);
         _containerClient = serviceClient.GetBlobContainerClient(containerName);
         _maxCacheSizeBytes = maxCacheSizeBytes;
     }
@@ -203,8 +240,52 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         var streamCapacity = (int)Math.Min(blobSize, int.MaxValue);
 
         using var memoryStream = new MemoryStream(streamCapacity);
-        await blobClient.DownloadToAsync(memoryStream).ConfigureAwait(false);
+        var downloadOptions = CreateDownloadOptions(blobSize);
+        await blobClient.DownloadToAsync(memoryStream, downloadOptions).ConfigureAwait(false);
         return memoryStream.GetBuffer();
+    }
+    
+    private static BlobDownloadToOptions CreateDownloadOptions(long blobSize)
+    {
+        return blobSize switch
+        {
+            < MegaByte => new BlobDownloadToOptions
+            {
+                TransferOptions = new StorageTransferOptions
+                {
+                    MaximumTransferSize = (int)blobSize,
+                    InitialTransferSize = (int)blobSize,
+                    MaximumConcurrency = 1
+                }
+            },
+            < 10 * MegaByte => new BlobDownloadToOptions
+            {
+                TransferOptions = new StorageTransferOptions
+                {
+                    MaximumTransferSize = 1 * MegaByte,
+                    InitialTransferSize = 1 * MegaByte,
+                    MaximumConcurrency = 4
+                }
+            },
+            < 100 * MegaByte => new BlobDownloadToOptions
+            {
+                TransferOptions = new StorageTransferOptions
+                {
+                    MaximumTransferSize = 4 * MegaByte,
+                    InitialTransferSize = 4 * MegaByte,
+                    MaximumConcurrency = 8
+                }
+            },
+            _ => new BlobDownloadToOptions
+            {
+                TransferOptions = new StorageTransferOptions
+                {
+                    MaximumTransferSize = 8 * MegaByte,
+                    InitialTransferSize = 8 * MegaByte,
+                    MaximumConcurrency = 16
+                }
+            }
+        };
     }
 
     /// <summary>
