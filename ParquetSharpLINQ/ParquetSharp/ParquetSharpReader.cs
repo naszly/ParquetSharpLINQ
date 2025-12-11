@@ -2,8 +2,6 @@ using ParquetSharp;
 
 namespace ParquetSharpLINQ.ParquetSharp;
 
-using ParquetRow = Dictionary<string, object?>;
-
 /// <summary>
 /// File-based Parquet reader implementation.
 /// Delegates to specialized classes for schema mapping, type resolution, and data reading.

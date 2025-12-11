@@ -1,6 +1,7 @@
 using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
 using NSubstitute;
+using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Tests.Unit;
 
@@ -40,10 +41,10 @@ public class ColumnReadingTests
                 requestedColumns = callInfo.Arg<IEnumerable<string>>().ToList();
                 
                 // Return mock data
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Alice", ["age"] = 30 },
-                    new() { ["id"] = 2L, ["name"] = "Bob", ["age"] = 25 }
+                    new(["id", "name", "age"], [1L, "Alice", 30]),
+                    new(["id", "name", "age"], [2L, "Bob", 25])
                 };
             });
 
@@ -98,10 +99,10 @@ public class ColumnReadingTests
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(callInfo =>
             {
                 requestedColumns = callInfo.Arg<IEnumerable<string>>().ToList();
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Alice", ["age"] = 30 },
-                    new() { ["id"] = 2L, ["name"] = "Bob", ["age"] = 25 }
+                    new(["id", "name", "age"], [1L, "Alice", 30]),
+                    new(["id", "name", "age"], [2L, "Bob", 25])
                 };
             });
 

@@ -139,7 +139,7 @@ public class ParquetMapperGenerator : IIncrementalGenerator
 
     private static void GenerateMapMethod(StringBuilder sb, string className, List<PropertyInfo> properties)
     {
-        sb.AppendLine($"        public {className} Map(IReadOnlyDictionary<string, object?> row)");
+        sb.AppendLine($"        public {className} Map(ParquetSharpLINQ.ParquetSharp.ParquetRow row)");
         sb.AppendLine("        {");
         sb.AppendLine($"            var instance = new {className}();");
         sb.AppendLine();

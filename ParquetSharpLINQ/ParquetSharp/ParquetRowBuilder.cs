@@ -3,8 +3,6 @@ using ParquetSharp;
 
 namespace ParquetSharpLINQ.ParquetSharp;
 
-using ParquetRow = Dictionary<string, object?>;
-
 /// <summary>
 /// Handles building rows from Parquet row groups.
 /// </summary>
@@ -65,14 +63,14 @@ internal static class ParquetRowBuilder
         Dictionary<string, ImmutableArray<object?>> buffers,
         int rowIndex)
     {
-        var row = new ParquetRow(columnsToRead.Count, ColumnNameComparer);
+        var values = new object?[columnsToRead.Count];
 
-        foreach (var columnName in columnsToRead)
+        for (var i = 0; i < columnsToRead.Count; i++)
         {
-            row[columnName] = buffers[columnName][rowIndex];
+            values[i] = buffers[columnsToRead[i]][rowIndex];
         }
 
-        return row;
+        return new ParquetRow(columnsToRead.ToArray(), values);
     }
 }
 

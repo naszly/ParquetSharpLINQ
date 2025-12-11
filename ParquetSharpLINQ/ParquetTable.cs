@@ -140,13 +140,18 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
         {
             foreach (var partition in partitions)
             {
-                // Create a row with only partition values - no need to read Parquet files!
-                var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                var columnNames = new string[partition.Values.Count];
+                var values = new object?[partition.Values.Count];
+                var index = 0;
+
                 foreach (var (key, value) in partition.Values)
                 {
-                    var partitionKey = $"{PartitionConstants.PartitionPrefix}{key}";
-                    row[partitionKey] = NormalizePartitionValue(value);
+                    columnNames[index] = $"{PartitionConstants.PartitionPrefix}{key}";
+                    values[index] = NormalizePartitionValue(value);
+                    index++;
                 }
+
+                var row = new ParquetRow(columnNames, values);
                 yield return activeMapper.Map(row);
             }
             yield break; // Early exit - no file reading needed!
@@ -282,19 +287,40 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
         return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
     }
 
-    private static Dictionary<string, object?> EnrichWithPartitionValues(
-        IReadOnlyDictionary<string, object?> row,
+    private static ParquetRow EnrichWithPartitionValues(
+        ParquetRow row,
         IReadOnlyDictionary<string, string> partitionValues)
     {
-        var enriched = new Dictionary<string, object?>(row, StringComparer.OrdinalIgnoreCase);
+        if (partitionValues.Count == 0)
+        {
+            return row;
+        }
 
+        var totalColumns = row.ColumnCount + partitionValues.Count;
+        var enrichedColumnNames = new string[totalColumns];
+        var enrichedValues = new object?[totalColumns];
+
+        // Copy existing row data
+        var columnNames = row.ColumnNames;
+        var values = row.Values;
+        for (var i = 0; i < row.ColumnCount; i++)
+        {
+            enrichedColumnNames[i] = columnNames[i];
+            enrichedValues[i] = values[i];
+        }
+
+        // Add partition values
+        var offset = row.ColumnCount;
+        var index = 0;
         foreach (var (key, value) in partitionValues)
         {
             var partitionKey = $"{PartitionConstants.PartitionPrefix}{key}";
-            enriched[partitionKey] = NormalizePartitionValue(value);
+            enrichedColumnNames[offset + index] = partitionKey;
+            enrichedValues[offset + index] = NormalizePartitionValue(value);
+            index++;
         }
 
-        return enriched;
+        return new ParquetRow(enrichedColumnNames, enrichedValues);
     }
 
     private static string NormalizePartitionValue(string value)

@@ -1,6 +1,7 @@
 using NSubstitute;
 using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
+using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Tests.Unit;
 
@@ -47,9 +48,9 @@ public class PartitionOnlyQueryTests
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(callInfo =>
             {
                 filesWereRead = true;
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Test" }
+                    new(["id", "name"], [1L, "Test"])
                 };
             });
 
@@ -101,9 +102,9 @@ public class PartitionOnlyQueryTests
 
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(callInfo =>
             {
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Test" }
+                    new(["id", "name"], [1L, "Test"])
                 };
             });
 

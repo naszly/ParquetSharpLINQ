@@ -366,7 +366,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         }
     }
 
-    public IEnumerable<Dictionary<string, object?>> ReadRows(string filePath, IEnumerable<string> columns)
+    public IEnumerable<ParquetRow> ReadRows(string filePath, IEnumerable<string> columns)
     {
         ArgumentNullException.ThrowIfNull(columns);
 

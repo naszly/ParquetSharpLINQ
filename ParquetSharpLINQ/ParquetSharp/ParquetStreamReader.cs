@@ -3,8 +3,6 @@ using ParquetSharp;
 
 namespace ParquetSharpLINQ.ParquetSharp;
 
-using ParquetRow = Dictionary<string, object?>;
-
 /// <summary>
 /// Provides static helper methods for reading Parquet data from streams.
 /// Used by both file-based and Azure blob-based readers.

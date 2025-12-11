@@ -1,3 +1,5 @@
+using ParquetSharpLINQ.ParquetSharp;
+
 namespace ParquetSharpLINQ;
 
 /// <summary>
@@ -7,18 +9,16 @@ namespace ParquetSharpLINQ;
 public static class ParquetMapperHelpers
 {
     /// <summary>
-    /// Tries to get a value from the row dictionary with case-insensitive key matching.
+    /// Tries to get a value from the ParquetRow with case-insensitive key matching.
     /// </summary>
-    public static bool TryGetValue(IReadOnlyDictionary<string, object?> row, string key, out object? value)
+    public static bool TryGetValue(ParquetRow row, string key, out object? value)
     {
-        if (row.TryGetValue(key, out value))
-            return true;
-
-        foreach (var pair in row)
+        var columnNames = row.ColumnNames;
+        for (var i = 0; i < columnNames.Length; i++)
         {
-            if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(columnNames[i], key, StringComparison.OrdinalIgnoreCase))
             {
-                value = pair.Value;
+                value = row[i];
                 return true;
             }
         }

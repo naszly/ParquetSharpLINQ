@@ -1,5 +1,6 @@
 using System.Reflection;
 using ParquetSharpLINQ.Constants;
+using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Tests.Unit;
 
@@ -46,12 +47,10 @@ public class SourceGenerationTests
         Assert.That(mapperType, Is.Not.Null);
         var mapper = Activator.CreateInstance(mapperType!) as IParquetMapper<GeneratedTestEntity>;
         Assert.That(mapper, Is.Not.Null);
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 123L,
-            ["name"] = "Test",
-            ["amount"] = 456.78m
-        };
+        var row = new ParquetRow(
+            ["id", "name", "amount"],
+            [123L, "Test", 456.78m]
+        );
         var result = mapper!.Map(row);
         Assert.That(result.Id, Is.EqualTo(123L));
         Assert.That(result.Name, Is.EqualTo("Test"));
@@ -123,13 +122,10 @@ public class SourceGenerationTests
         var testDate = new DateTime(2024, 1, 15, 10, 30, 45);
         var testNullableDate = new DateTime(2024, 2, 20, 14, 45, 30);
 
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 123L,
-            ["created_date"] = testDate,
-            ["updated_date"] = testNullableDate,
-            ["deleted_date"] = null
-        };
+        var row = new ParquetRow(
+            ["id", "created_date", "updated_date", "deleted_date"],
+            [123L, testDate, testNullableDate, null]
+        );
 
         var result = mapper!.Map(row);
 
@@ -147,13 +143,10 @@ public class SourceGenerationTests
 
         var mapper = Activator.CreateInstance(mapperType!) as IParquetMapper<TestEntityWithDateTime>;
 
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 456L,
-            ["created_date"] = "2024-12-07T08:30:00",
-            ["updated_date"] = "2024-12-07T12:45:00",
-            ["deleted_date"] = null
-        };
+        var row = new ParquetRow(
+            ["id", "created_date", "updated_date", "deleted_date"],
+            [456L, "2024-12-07T08:30:00", "2024-12-07T12:45:00", null]
+        );
 
         var result = mapper!.Map(row);
 
@@ -170,19 +163,19 @@ public class SourceGenerationTests
 
         var mapper = Activator.CreateInstance(mapperType!) as IParquetMapper<TestEntityWithNullables>;
 
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 789L,
-            ["nullable_int"] = 42,
-            ["nullable_decimal"] = 123.45m,
-            ["nullable_date"] = new DateTime(2024, 3, 15)
-        };
+        var row = new ParquetRow(
+            ["id", "nullable_int", "nullable_decimal", "nullable_date"],
+            [789L, 42, 123.45m, new DateTime(2024, 3, 15)]
+        );
 
         var result = mapper!.Map(row);
 
         Assert.That(result.NullableDate, Is.EqualTo(new DateTime(2024, 3, 15)));
 
-        row["nullable_date"] = null;
+        row = new ParquetRow(
+            ["id", "nullable_int", "nullable_decimal", "nullable_date"],
+            [789L, 42, 123.45m, null]
+        );
         result = mapper.Map(row);
         Assert.That(result.NullableDate, Is.Null);
     }
@@ -206,12 +199,10 @@ public class SourceGenerationTests
 
         // Simulate how ParquetTable enriches rows with partition values
         // Partition values from directory names like "event_date=2025-10-01" are strings
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 100L,
-            ["name"] = "Test Record",
-            [$"{PartitionConstants.PartitionPrefix}event_date"] = "2025-10-01" // String from partition directory name
-        };
+        var row = new ParquetRow(
+            ["id", "name", $"{PartitionConstants.PartitionPrefix}event_date"],
+            [100L, "Test Record", "2025-10-01"] // String from partition directory name
+        );
 
         var result = mapper!.Map(row);
 
@@ -228,12 +219,10 @@ public class SourceGenerationTests
         var mapper = Activator.CreateInstance(mapperType!) as IParquetMapper<TestEntityWithDateTimePartition>;
 
         // Partition with timestamp
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 200L,
-            ["name"] = "Test with Time",
-            [$"{PartitionConstants.PartitionPrefix}event_date"] = "2025-10-01T14:30:00"
-        };
+        var row = new ParquetRow(
+            ["id", "name", $"{PartitionConstants.PartitionPrefix}event_date"],
+            [200L, "Test with Time", "2025-10-01T14:30:00"]
+        );
 
         var result = mapper!.Map(row);
 
@@ -256,12 +245,10 @@ public class SourceGenerationTests
 
         foreach (var (dateString, expectedDate) in testCases)
         {
-            var row = new Dictionary<string, object?>
-            {
-                ["id"] = 1L,
-                ["name"] = "Test",
-                [$"{PartitionConstants.PartitionPrefix}event_date"] = dateString
-            };
+            var row = new ParquetRow(
+                ["id", "name", $"{PartitionConstants.PartitionPrefix}event_date"],
+                [1L, "Test", dateString]
+            );
 
             var result = mapper!.Map(row);
 
@@ -284,12 +271,10 @@ public class SourceGenerationTests
 
         var mapper = Activator.CreateInstance(mapperType!) as IParquetMapper<TestEntityWithDateOnlyPartition>;
 
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 300L,
-            ["name"] = "DateOnly Test",
-            [$"{PartitionConstants.PartitionPrefix}data_day"] = "2025-10-01"
-        };
+        var row = new ParquetRow(
+            ["id", "name", $"{PartitionConstants.PartitionPrefix}data_day"],
+            [300L, "DateOnly Test", "2025-10-01"]
+        );
 
         var result = mapper!.Map(row);
 
@@ -308,17 +293,11 @@ public class SourceGenerationTests
         var longRegionValue =
             "very-long-region-name-that-might-cause-path-length-issues-when-combined-with-other-partitions-and-file-paths-exceeding-260-characters";
 
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 1L,
-            ["name"] = "Test",
-            ["amount"] = 100m,
-            ["count"] = 5,
-            ["is_active"] = true,
-            ["created_date"] = DateTime.Now,
-            [$"{PartitionConstants.PartitionPrefix}year"] = "2025",
-            [$"{PartitionConstants.PartitionPrefix}region"] = longRegionValue
-        };
+        var row = new ParquetRow(
+            ["id", "name", "amount", "count", "is_active", "created_date", $"{PartitionConstants.PartitionPrefix}year", $"{PartitionConstants.PartitionPrefix}region"
+            ],
+            [1L, "Test", 100m, 5, true, DateTime.Now, "2025", longRegionValue]
+        );
 
         var result = mapper!.Map(row);
 
@@ -335,13 +314,14 @@ public class SourceGenerationTests
 
         // Simulate partition path like:
         // event_day=2025-10-01/event_source=very-long-event-source-to-test-the-path-limit
-        var row = new Dictionary<string, object?>
-        {
-            ["id"] = 999L,
-            ["name"] =
+        var row = new ParquetRow(
+            ["id", "name", $"{PartitionConstants.PartitionPrefix}event_date"],
+            [
+                999L,
                 "very-long-event-source-name-that-could-be-part-of-a-partition-key-in-real-world-scenarios-like-kafka-topics-or-application-names",
-            [$"{PartitionConstants.PartitionPrefix}event_date"] = "2025-10-01"
-        };
+                "2025-10-01"
+            ]
+        );
 
         var result = mapper!.Map(row);
 

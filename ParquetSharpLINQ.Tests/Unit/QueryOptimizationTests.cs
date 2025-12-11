@@ -1,5 +1,6 @@
 using NSubstitute;
 using ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Tests.Unit;
 
@@ -70,33 +71,37 @@ public class QueryOptimizationTests
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2023") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=us"))
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Alice_2023_us", ["amount"] = 100m, ["count"] = 10, ["is_active"] = true, ["created_date"] = new DateTime(2023, 1, 1) }
+                    new(["id", "name", "amount", "count", "is_active", "created_date"],
+                        [1L, "Alice_2023_us", 100m, 10, true, new DateTime(2023, 1, 1)])
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2023") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=eu"))
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 2L, ["name"] = "Bob_2023_eu", ["amount"] = 200m, ["count"] = 20, ["is_active"] = true, ["created_date"] = new DateTime(2023, 1, 1) }
+                    new(["id", "name", "amount", "count", "is_active", "created_date"],
+                        [2L, "Bob_2023_eu", 200m, 20, true, new DateTime(2023, 1, 1)])
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2024") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=us"))
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 3L, ["name"] = "Charlie_2024_us", ["amount"] = 300m, ["count"] = 30, ["is_active"] = true, ["created_date"] = new DateTime(2024, 1, 1) }
+                    new(["id", "name", "amount", "count", "is_active", "created_date"],
+                        [3L, "Charlie_2024_us", 300m, 30, true, new DateTime(2024, 1, 1)])
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2024") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=eu"))
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 4L, ["name"] = "David_2024_eu", ["amount"] = 400m, ["count"] = 40, ["is_active"] = true, ["created_date"] = new DateTime(2024, 1, 1) }
+                    new(["id", "name", "amount", "count", "is_active", "created_date"],
+                        [4L, "David_2024_eu", 400m, 40, true, new DateTime(2024, 1, 1)])
                 };
 
-            return new List<Dictionary<string, object?>>();
+            return new List<ParquetRow>();
         });
     }
 
@@ -158,9 +163,9 @@ public class QueryOptimizationTests
             .Returns(callInfo =>
             {
                 requestedColumns = callInfo.Arg<IEnumerable<string>>();
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Test" }
+                    new(["id", "name"], [1L, "Test"])
                 };
             });
 
@@ -190,9 +195,9 @@ public class QueryOptimizationTests
             {
                 callCount++;
                 requestedColumns = callInfo.Arg<IEnumerable<string>>();
-                return new List<Dictionary<string, object?>>
+                return new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["amount"] = 100m }
+                    new(["id", "amount"], [1L, 100m])
                 };
             });
 
@@ -252,9 +257,10 @@ public class QueryOptimizationTests
             mockReader.GetColumns(Arg.Any<string>()).Returns(columns);
 
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(
-                new List<Dictionary<string, object?>>
+                new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Test", ["amount"] = 100m, ["count"] = 10, ["is_active"] = true, ["created_date"] = new DateTime(2024, 1, 1) }
+                    new(["id", "name", "amount", "count", "is_active", "created_date"],
+                        [1L, "Test", 100m, 10, true, new DateTime(2024, 1, 1)])
                 });
 
             var table = new ParquetTable<TestEntity>(testPath, mockReader);
@@ -300,9 +306,9 @@ public class QueryOptimizationTests
             mockReader.GetColumns(Arg.Any<string>()).Returns(columns);
 
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(
-                new List<Dictionary<string, object?>>
+                new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Test" }
+                    new(["id", "name"], [1L, "Test"])
                 });
 
             var table = new ParquetTable<TestEntityWithDateTimePartition>(testPath, mockReader);
@@ -348,9 +354,9 @@ public class QueryOptimizationTests
             mockReader.GetColumns(Arg.Any<string>()).Returns(columns);
 
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(
-                new List<Dictionary<string, object?>>
+                new List<ParquetRow>
                 {
-                    new() { ["id"] = 1L, ["name"] = "Test" }
+                    new(["id", "name"], [1L, "Test"])
                 });
 
             var table = new ParquetTable<TestEntityWithDateOnlyPartition>(testPath, mockReader);

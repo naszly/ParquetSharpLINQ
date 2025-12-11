@@ -1,5 +1,6 @@
 using NSubstitute;
 using ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Tests.Unit;
 
@@ -43,35 +44,14 @@ public class LinqQueryTests
         };
         _mockReader.GetColumns(Arg.Any<string>()).Returns(columns);
 
-        var rows = new List<Dictionary<string, object?>>
+        var rows = new List<ParquetRow>
         {
-            new()
-            {
-                ["id"] = 1L,
-                ["name"] = "Alice",
-                ["amount"] = 100.50m,
-                ["count"] = 5,
-                ["is_active"] = true,
-                ["created_date"] = new DateTime(2024, 1, 1)
-            },
-            new()
-            {
-                ["id"] = 2L,
-                ["name"] = "Bob",
-                ["amount"] = 250.75m,
-                ["count"] = 10,
-                ["is_active"] = true,
-                ["created_date"] = new DateTime(2024, 2, 1)
-            },
-            new()
-            {
-                ["id"] = 3L,
-                ["name"] = "Charlie",
-                ["amount"] = 75.25m,
-                ["count"] = 3,
-                ["is_active"] = false,
-                ["created_date"] = new DateTime(2024, 3, 1)
-            }
+            new(["id", "name", "amount", "count", "is_active", "created_date"],
+                [1L, "Alice", 100.50m, 5, true, new DateTime(2024, 1, 1)]),
+            new(["id", "name", "amount", "count", "is_active", "created_date"],
+                [2L, "Bob", 250.75m, 10, true, new DateTime(2024, 2, 1)]),
+            new(["id", "name", "amount", "count", "is_active", "created_date"],
+                [3L, "Charlie", 75.25m, 3, false, new DateTime(2024, 3, 1)])
         };
         _mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(rows);
     }
