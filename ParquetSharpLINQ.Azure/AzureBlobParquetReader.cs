@@ -25,8 +25,6 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     private readonly long _maxCacheSizeBytes;
     private long _currentCacheSizeBytes;
 
-    private const int TaskCleanupThresholdMultiplier = 2;
-
     public AzureBlobParquetReader(
         string connectionString, 
         string containerName,
@@ -297,42 +295,11 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     {
         ArgumentNullException.ThrowIfNull(filePaths);
 
-        using var semaphore = new SemaphoreSlim(maxParallelism, maxParallelism);
-        var activeTasks = new Queue<Task>(maxParallelism * TaskCleanupThresholdMultiplier);
-        
-        foreach (var blobPath in filePaths)
-        {
-            await semaphore.WaitAsync();
-            
-            var task = PrefetchWithSemaphoreAsync(blobPath, semaphore);
-            activeTasks.Enqueue(task);
-            
-            if (activeTasks.Count >= maxParallelism * TaskCleanupThresholdMultiplier)
-            {
-                while (activeTasks.Count > 0 && activeTasks.Peek().IsCompleted)
-                {
-                    _ = activeTasks.Dequeue();
-                }
-            }
-        }
-        
-        // Wait for all remaining tasks to complete
-        await Task.WhenAll(activeTasks);
-    }
-
-    /// <summary>
-    /// Helper method to prefetch a blob with semaphore-based throttling.
-    /// </summary>
-    private async Task PrefetchWithSemaphoreAsync(string blobPath, SemaphoreSlim semaphore)
-    {
-        try
+        var options = new ParallelOptions { MaxDegreeOfParallelism = maxParallelism };
+        await Parallel.ForEachAsync(filePaths, options, async (blobPath, cancellationToken) =>
         {
             await PrefetchBlobAsync(blobPath);
-        }
-        finally
-        {
-            semaphore.Release();
-        }
+        });
     }
 
     /// <summary>
