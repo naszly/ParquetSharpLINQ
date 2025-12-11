@@ -12,7 +12,7 @@ public static class ParquetConfiguration
     public const int DefaultPrefetchParallelism = 8;
     
     /// <summary>
-    /// Default maximum cache size in bytes for Azure Blob Storage prefetching (1 GB).
+    /// Default maximum cache size in bytes for Azure Blob Storage prefetching (4 GB).
     /// </summary>
-    public const long DefaultMaxCacheSizeBytes = 1_073_741_824;
+    public const long DefaultMaxCacheSizeBytes = 4L * 1024 * 1024 * 1024;
 }
