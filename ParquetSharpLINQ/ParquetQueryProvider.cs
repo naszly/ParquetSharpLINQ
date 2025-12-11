@@ -40,36 +40,12 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
         // Analyze the query to extract optimization hints
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        // Check if we can use async prefetching for Azure Blob Storage
-        if (_table.CanUsePrefetch())
-        {
-            return Task.Run(async () => await ExecuteWithPrefetchAsync<TResult>(
-                expression,
-                analysis.PartitionFilters.Count > 0 ? analysis.PartitionFilters : null,
-                analysis.RequestedColumns
-            )).GetAwaiter().GetResult();
-        }
-
         // Fallback to synchronous execution for local files
         var sourceQueryable = _table.AsEnumerable(
             analysis.PartitionFilters.Count > 0 ? analysis.PartitionFilters : null,
             analysis.RequestedColumns
         ).AsQueryable();
 
-        var rewritten = ParquetExpressionReplacer<T>.Replace(expression, _table, sourceQueryable);
-        return sourceQueryable.Provider.Execute<TResult>(rewritten);
-    }
-
-    private async Task<TResult> ExecuteWithPrefetchAsync<TResult>(
-        Expression expression,
-        IReadOnlyDictionary<string, object?>? partitionFilters,
-        IReadOnlyCollection<string>? requestedColumns)
-    {
-        // Prefetch blobs asynchronously first
-        await _table.PrefetchAsync(partitionFilters, prefetchParallelism: ParquetConfiguration.DefaultPrefetchParallelism);
-
-        // Now execute using the regular synchronous path - blobs are cached
-        var sourceQueryable = _table.AsEnumerable(partitionFilters, requestedColumns).AsQueryable();
         var rewritten = ParquetExpressionReplacer<T>.Replace(expression, _table, sourceQueryable);
         return sourceQueryable.Provider.Execute<TResult>(rewritten);
     }

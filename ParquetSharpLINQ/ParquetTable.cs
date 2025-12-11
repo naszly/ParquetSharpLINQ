@@ -1,10 +1,10 @@
-using System.Collections;
-using System.Linq.Expressions;
-using System.Reflection;
 using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Constants;
 using ParquetSharpLINQ.Models;
 using ParquetSharpLINQ.ParquetSharp;
+using System.Collections;
+using System.Linq.Expressions;
+using System.Reflection;
 
 namespace ParquetSharpLINQ;
 
@@ -14,7 +14,6 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
     private readonly IParquetReader _reader;
     private readonly string _rootPath;
     private readonly SemaphoreSlim _prefetchLock = new(1, 1);
-    private bool _isPrefetched;
 
     /// <summary>
     /// Creates a new ParquetTable for querying Parquet files.
@@ -87,85 +86,6 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
     }
 
     /// <summary>
-    /// Converts the table to an async enumerable for streaming results asynchronously.
-    /// This method uses an optimized async execution path without blocking threads.
-    /// </summary>
-    public async IAsyncEnumerable<T> AsAsyncEnumerable()
-    {
-        if (CanUsePrefetch())
-        {
-            await PrefetchAsync(null);
-        }
-
-        foreach (var item in AsEnumerable())
-        {
-            yield return item;
-        }
-    }
-
-    /// <summary>
-    /// Checks if the reader supports async prefetching.
-    /// </summary>
-    internal bool CanUsePrefetch()
-    {
-        return _reader is IAsyncParquetReader;
-    }
-
-    /// <summary>
-    /// Prefetches files into cache without enumerating the data.
-    /// Only works if the reader implements IAsyncParquetReader.
-    /// </summary>
-    internal async Task PrefetchAsync(
-        IReadOnlyDictionary<string, object?>? partitionFilters,
-        int prefetchParallelism = ParquetConfiguration.DefaultPrefetchParallelism)
-    {
-        if (_reader is not IAsyncParquetReader asyncReader)
-        {
-            return;
-        }
-
-        if (_isPrefetched && partitionFilters == null)
-        {
-            return;
-        }
-
-        await _prefetchLock.WaitAsync();
-        try
-        {
-            if (_isPrefetched && partitionFilters == null)
-            {
-                return;
-            }
-
-            var partitions = DiscoverPartitions();
-
-            if (partitionFilters != null && partitionFilters.Count > 0)
-            {
-                var mappedFilters = MapPropertyNamesToColumnNames(partitionFilters);
-                partitions = PrunePartitions(partitions, mappedFilters);
-            }
-
-            var allFiles = new List<string>();
-            foreach (var partition in partitions)
-            {
-                var filesToRead = partition.Files;
-                allFiles.AddRange(filesToRead);
-            }
-
-            await asyncReader.PrefetchAsync(allFiles, prefetchParallelism);
-
-            if (partitionFilters == null)
-            {
-                _isPrefetched = true;
-            }
-        }
-        finally
-        {
-            _prefetchLock.Release();
-        }
-    }
-
-    /// <summary>
     /// Optimized enumeration with partition pruning and column projection.
     /// </summary>
     /// <param name="partitionFilters">Filters for partition pruning. Null = no filtering.</param>
@@ -174,56 +94,81 @@ public class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
         IReadOnlyDictionary<string, object?>? partitionFilters,
         IReadOnlyCollection<string>? requestedColumns)
     {
-        return Enumerate(_mapper, partitionFilters, requestedColumns);
-
-        IEnumerable<T> Enumerate(
-            IParquetMapper<T> activeMapper,
-            IReadOnlyDictionary<string, object?>? filters,
-            IReadOnlyCollection<string>? columns)
+        if (_reader is IAsyncParquetReader asyncReader)
         {
             var partitions = DiscoverPartitions();
 
-            if (filters != null && filters.Count > 0)
+            if (partitionFilters != null && partitionFilters.Count > 0)
             {
-                var mappedFilters = MapPropertyNamesToColumnNames(filters);
+                var mappedFilters = MapPropertyNamesToColumnNames(partitionFilters);
                 partitions = PrunePartitions(partitions, mappedFilters);
             }
 
-            // Optimization: If all requested columns are partition columns, return data from partition metadata only
-            if (columns != null && columns.Count > 0 && AreAllColumnsPartitions(columns))
+            if (requestedColumns == null || requestedColumns.Count == 0 || !AreAllColumnsPartitions(requestedColumns))
             {
-                foreach (var partition in partitions)
-                {
-                    // Create a row with only partition values - no need to read Parquet files!
-                    var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var (key, value) in partition.Values)
-                    {
-                        var partitionKey = $"{PartitionConstants.PartitionPrefix}{key}";
-                        row[partitionKey] = NormalizePartitionValue(value);
-                    }
-                    yield return activeMapper.Map(row);
-                }
-                yield break; // Early exit - no file reading needed!
-            }
+                var filesToPrefetch = partitions.SelectMany(p => p.Files).ToList();
 
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await asyncReader.PrefetchAsync(filesToPrefetch);
+                    }
+                    catch
+                    {
+                        // Swallow prefetch errors - enumeration will still work from cache or download on-demand
+                    }
+                });
+            }
+        }
+
+        return Enumerate(_mapper, partitionFilters, requestedColumns);
+    }
+
+    private IEnumerable<T> Enumerate(IParquetMapper<T> activeMapper, IReadOnlyDictionary<string, object?>? filters, IReadOnlyCollection<string>? columns)
+    {
+        var partitions = DiscoverPartitions();
+
+        if (filters != null && filters.Count > 0)
+        {
+            var mappedFilters = MapPropertyNamesToColumnNames(filters);
+            partitions = PrunePartitions(partitions, mappedFilters);
+        }
+
+        // Optimization: If all requested columns are partition columns, return data from partition metadata only
+        if (columns != null && columns.Count > 0 && AreAllColumnsPartitions(columns))
+        {
             foreach (var partition in partitions)
             {
-                var filesToRead = partition.Files;
-                
-                foreach (var file in filesToRead)
+                // Create a row with only partition values - no need to read Parquet files!
+                var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (key, value) in partition.Values)
                 {
-                    var availableColumnNames = _reader.GetColumns(file)
-                        .Select(column => column.Name)
-                        .Where(name => !string.IsNullOrWhiteSpace(name))
-                        .ToList();
+                    var partitionKey = $"{PartitionConstants.PartitionPrefix}{key}";
+                    row[partitionKey] = NormalizePartitionValue(value);
+                }
+                yield return activeMapper.Map(row);
+            }
+            yield break; // Early exit - no file reading needed!
+        }
 
-                    var columnsToRead = ResolveColumnsToRead(activeMapper, availableColumnNames, columns);
+        foreach (var partition in partitions)
+        {
+            var filesToRead = partition.Files;
 
-                    foreach (var row in _reader.ReadRows(file, columnsToRead))
-                    {
-                        var enrichedRow = EnrichWithPartitionValues(row, partition.Values);
-                        yield return activeMapper.Map(enrichedRow);
-                    }
+            foreach (var file in filesToRead)
+            {
+                var availableColumnNames = _reader.GetColumns(file)
+                    .Select(column => column.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .ToList();
+
+                var columnsToRead = ResolveColumnsToRead(activeMapper, availableColumnNames, columns);
+
+                foreach (var row in _reader.ReadRows(file, columnsToRead))
+                {
+                    var enrichedRow = EnrichWithPartitionValues(row, partition.Values);
+                    yield return activeMapper.Map(enrichedRow);
                 }
             }
         }
