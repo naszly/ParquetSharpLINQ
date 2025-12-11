@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ParquetSharp;
 
 namespace ParquetSharpLINQ.ParquetSharp;
@@ -39,19 +40,18 @@ internal static class ParquetRowBuilder
     /// <summary>
     /// Reads all requested columns from a row group into memory buffers.
     /// </summary>
-    private static Dictionary<string, object?[]> ReadAllColumns(
+    private static Dictionary<string, ImmutableArray<object?>> ReadAllColumns(
         RowGroupReader rowGroupReader,
         List<string> columnsToRead,
         Dictionary<string, ParquetColumnMapper.ColumnHandle> availableColumns,
         int numRows)
     {
-        var buffers = new Dictionary<string, object?[]>(ColumnNameComparer);
+        var buffers = new Dictionary<string, ImmutableArray<object?>>(columnsToRead.Count, ColumnNameComparer);
 
         foreach (var columnName in columnsToRead)
         {
             var handle = availableColumns[columnName];
-            var columnData = ParquetColumnReader.ReadColumn(rowGroupReader, handle, numRows);
-            buffers[columnName] = ParquetColumnReader.EnsureRowCount(columnData, numRows);
+            buffers[columnName] = ParquetColumnReader.ReadColumn(rowGroupReader, handle, numRows);
         }
 
         return buffers;
@@ -62,15 +62,14 @@ internal static class ParquetRowBuilder
     /// </summary>
     private static ParquetRow BuildRow(
         List<string> columnsToRead,
-        Dictionary<string, object?[]> buffers,
+        Dictionary<string, ImmutableArray<object?>> buffers,
         int rowIndex)
     {
         var row = new ParquetRow(columnsToRead.Count, ColumnNameComparer);
 
         foreach (var columnName in columnsToRead)
         {
-            var values = buffers[columnName];
-            row[columnName] = rowIndex < values.Length ? values[rowIndex] : null;
+            row[columnName] = buffers[columnName][rowIndex];
         }
 
         return row;

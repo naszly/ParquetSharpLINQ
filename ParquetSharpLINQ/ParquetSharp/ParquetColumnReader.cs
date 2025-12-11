@@ -1,20 +1,20 @@
+using System.Collections.Immutable;
 using ParquetSharp;
 
 namespace ParquetSharpLINQ.ParquetSharp;
 
 /// <summary>
-/// Handles reading column data from Parquet files and converting to object arrays.
+/// Handles reading column data from Parquet files and converting to immutable arrays.
 /// </summary>
 internal static class ParquetColumnReader
 {
-    private const string SupportedTypesMessage =
-        "Supported types: bool, sbyte, byte, short, ushort, int, uint, long, ulong, " +
-        "float, double, decimal, string, DateTime, DateOnly, TimeSpan, byte[]";
+    private const string SupportedTypesMessage = 
+        "Supported types: bool, sbyte, byte, short, ushort, int, uint, long, ulong, float, double, decimal, string, DateTime, Date, DateOnly, TimeSpan, byte[]";
 
     /// <summary>
-    /// Reads a single column from a row group.
+    /// Reads a single column from a row group and returns it as an immutable array of objects.
     /// </summary>
-    public static object?[] ReadColumn(
+    public static ImmutableArray<object?> ReadColumn(
         RowGroupReader rowGroupReader,
         ParquetColumnMapper.ColumnHandle handle,
         int numRows)
@@ -29,54 +29,105 @@ internal static class ParquetColumnReader
             targetType = typeof(Nullable<>).MakeGenericType(targetType);
         }
 
-        var typedValues = ReadColumnData(columnReader, targetType, numRows);
-        return ConvertToObjectArray(typedValues);
+        return ReadColumnData(columnReader, targetType, numRows);
     }
 
-    /// <summary>
-    /// Reads typed column data from a column reader.
-    /// Uses reflection to call the generic LogicalReader method with the correct type.
-    /// </summary>
-    private static Array ReadColumnData(ColumnReader columnReader, Type targetType, int numRows)
+    private static ImmutableArray<object?> ReadColumnData(ColumnReader columnReader, Type targetType, int numRows)
     {
-        var logicalReaderMethod = typeof(ColumnReader)
-            .GetMethods()
-            .Single(m => m.Name == nameof(ColumnReader.LogicalReader) 
-                         && m.IsGenericMethodDefinition 
-                         && m.GetParameters().Length == 1
-                         && m.GetParameters()[0].ParameterType == typeof(int))
-            .MakeGenericMethod(targetType);
-        const int bufferLength = 4096;
-        var logicalReader = logicalReaderMethod.Invoke(columnReader, [bufferLength]);
+        var underlyingType = Nullable.GetUnderlyingType(targetType);
         
-        var readAllMethod = logicalReader!.GetType().GetMethod(nameof(LogicalColumnReader<>.ReadAll))!;
-        var result = readAllMethod.Invoke(logicalReader, [numRows]);
-
-        return (Array)result!;
-    }
-
-    /// <summary>
-    /// Converts a typed array to an object array.
-    /// </summary>
-    private static object?[] ConvertToObjectArray(Array typedValues)
-    {
-        var result = new object?[typedValues.Length];
-        for (var i = 0; i < typedValues.Length; ++i)
+        if (underlyingType != null)
         {
-            result[i] = typedValues.GetValue(i);
+            return underlyingType switch
+            {
+                _ when underlyingType == typeof(bool) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<bool?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(sbyte) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<sbyte?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(byte) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<byte?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(short) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<short?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(ushort) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<ushort?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(int) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<int?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(uint) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<uint?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(long) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<long?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(ulong) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<ulong?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(float) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<float?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(double) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<double?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(decimal) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<decimal?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(Date) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<Date?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(DateTime) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<DateTime?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(DateOnly) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<DateOnly?>().ReadAll(numRows)),
+                _ when underlyingType == typeof(TimeSpan) =>
+                    ConvertToObjectArray(columnReader.LogicalReader<TimeSpan?>().ReadAll(numRows)),
+                _ => throw new NotSupportedException($"Reading nullable type {targetType} is not supported. {SupportedTypesMessage}")
+            };
         }
-        return result;
+
+        return targetType switch
+        {
+            _ when targetType == typeof(bool) =>
+                ConvertToObjectArray(columnReader.LogicalReader<bool>().ReadAll(numRows)),
+            _ when targetType == typeof(sbyte) =>
+                ConvertToObjectArray(columnReader.LogicalReader<sbyte>().ReadAll(numRows)),
+            _ when targetType == typeof(byte) =>
+                ConvertToObjectArray(columnReader.LogicalReader<byte>().ReadAll(numRows)),
+            _ when targetType == typeof(short) =>
+                ConvertToObjectArray(columnReader.LogicalReader<short>().ReadAll(numRows)),
+            _ when targetType == typeof(ushort) =>
+                ConvertToObjectArray(columnReader.LogicalReader<ushort>().ReadAll(numRows)),
+            _ when targetType == typeof(int) =>
+                ConvertToObjectArray(columnReader.LogicalReader<int>().ReadAll(numRows)),
+            _ when targetType == typeof(uint) =>
+                ConvertToObjectArray(columnReader.LogicalReader<uint>().ReadAll(numRows)),
+            _ when targetType == typeof(long) =>
+                ConvertToObjectArray(columnReader.LogicalReader<long>().ReadAll(numRows)),
+            _ when targetType == typeof(ulong) =>
+                ConvertToObjectArray(columnReader.LogicalReader<ulong>().ReadAll(numRows)),
+            _ when targetType == typeof(float) =>
+                ConvertToObjectArray(columnReader.LogicalReader<float>().ReadAll(numRows)),
+            _ when targetType == typeof(double) =>
+                ConvertToObjectArray(columnReader.LogicalReader<double>().ReadAll(numRows)),
+            _ when targetType == typeof(decimal) =>
+                ConvertToObjectArray(columnReader.LogicalReader<decimal>().ReadAll(numRows)),
+            _ when targetType == typeof(string) =>
+                ConvertToObjectArray(columnReader.LogicalReader<string>().ReadAll(numRows)),
+            _ when targetType == typeof(Date) =>
+                ConvertToObjectArray(columnReader.LogicalReader<Date>().ReadAll(numRows)),
+            _ when targetType == typeof(DateTime) =>
+                ConvertToObjectArray(columnReader.LogicalReader<DateTime>().ReadAll(numRows)),
+            _ when targetType == typeof(DateOnly) =>
+                ConvertToObjectArray(columnReader.LogicalReader<DateOnly>().ReadAll(numRows)),
+            _ when targetType == typeof(TimeSpan) =>
+                ConvertToObjectArray(columnReader.LogicalReader<TimeSpan>().ReadAll(numRows)),
+            _ when targetType == typeof(byte[]) =>
+                ConvertToObjectArray(columnReader.LogicalReader<byte[]>().ReadAll(numRows)),
+            _ => throw new NotSupportedException($"Reading type {targetType} is not supported. {SupportedTypesMessage}")
+        };
     }
 
-    /// <summary>
-    /// Ensures the values array has the expected row count, padding with nulls if necessary.
-    /// </summary>
-    public static object?[] EnsureRowCount(object?[] values, int expectedCount)
+    private static ImmutableArray<object?> ConvertToObjectArray<T>(T[] typedArray)
     {
-        if (values.Length == expectedCount) return values;
+        var builder = ImmutableArray.CreateBuilder<object?>(typedArray.Length);
+        builder.Count = typedArray.Length;
         
-        var result = new object?[expectedCount];
-        Array.Copy(values, result, Math.Min(values.Length, expectedCount));
-        return result;
+        for (var i = 0; i < typedArray.Length; i++)
+        {
+            builder[i] = typedArray[i];
+        }
+        
+        return builder.MoveToImmutable();
     }
 }

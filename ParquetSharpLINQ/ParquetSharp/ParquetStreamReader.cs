@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ParquetSharp;
 
 namespace ParquetSharpLINQ.ParquetSharp;
@@ -13,11 +14,11 @@ public static class ParquetStreamReader
     /// <summary>
     /// Reads column metadata from a stream.
     /// </summary>
-    public static IEnumerable<Column> GetColumnsFromStream(Stream? stream)
+    public static ImmutableArray<Column> GetColumnsFromStream(Stream? stream)
     {
         if (stream == null)
         {
-            yield break;
+            return ImmutableArray<Column>.Empty;
         }
 
         stream.Position = 0;
@@ -25,11 +26,14 @@ public static class ParquetStreamReader
         var schema = reader.FileMetaData.Schema ??
                      throw new InvalidOperationException("Unable to read Parquet schema.");
 
+        var builder = ImmutableArray.CreateBuilder<Column>(schema.NumColumns);
         for (var i = 0; i < schema.NumColumns; i++)
         {
             var descriptor = schema.Column(i);
-            yield return new Column(descriptor.LogicalType.GetType(), ParquetColumnMapper.GetColumnPath(descriptor));
+            builder.Add(new Column(descriptor.LogicalType.GetType(), ParquetColumnMapper.GetColumnPath(descriptor)));
         }
+        
+        return builder.ToImmutable();
     }
 
     /// <summary>
@@ -48,11 +52,13 @@ public static class ParquetStreamReader
                      throw new InvalidOperationException("Unable to read Parquet schema.");
 
         var availableColumns = ParquetColumnMapper.BuildColumnMap(schema);
-        var columnsToRead = ParquetColumnMapper.PrepareRequestedColumns(columns, availableColumns);
+        var columnsToRead = columns as IReadOnlyCollection<string> ?? columns.ToList();
+        var requestedColumns = ParquetColumnMapper.PrepareRequestedColumns(columnsToRead, availableColumns);
 
-        for (var rowGroupIndex = 0; rowGroupIndex < reader.FileMetaData.NumRowGroups; rowGroupIndex++)
+        var numRowGroups = reader.FileMetaData.NumRowGroups;
+        for (var rowGroupIndex = 0; rowGroupIndex < numRowGroups; rowGroupIndex++)
         {
-            foreach (var row in ParquetRowBuilder.ReadRowGroup(reader, rowGroupIndex, columnsToRead, availableColumns))
+            foreach (var row in ParquetRowBuilder.ReadRowGroup(reader, rowGroupIndex, requestedColumns, availableColumns))
             {
                 yield return row;
             }
