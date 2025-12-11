@@ -191,15 +191,20 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     {
         var blobClient = _containerClient.GetBlobClient(blobPath);
 
-        var exists = await blobClient.ExistsAsync();
-        if (!exists)
+        var existsResponse = await blobClient.ExistsAsync().ConfigureAwait(false);
+        if (!existsResponse.Value)
         {
             return null;
         }
 
-        using var memoryStream = new MemoryStream();
-        await blobClient.DownloadToAsync(memoryStream);
-        return memoryStream.ToArray();
+        var properties = await blobClient.GetPropertiesAsync().ConfigureAwait(false);
+        var blobSize = properties.Value.ContentLength;
+
+        var streamCapacity = (int)Math.Min(blobSize, int.MaxValue);
+
+        using var memoryStream = new MemoryStream(streamCapacity);
+        await blobClient.DownloadToAsync(memoryStream).ConfigureAwait(false);
+        return memoryStream.GetBuffer();
     }
 
     /// <summary>
