@@ -12,18 +12,21 @@ using Lock = System.Object;
 #endif
 
 /// <summary>
-/// Parquet reader that loads files from Azure Blob Storage into memory (no local disk usage)
-/// Uses in-memory caching with LRU eviction for performance optimization.
+/// Parquet reader that downloads files from Azure Blob Storage to a local temp directory.
+/// Uses file-based caching with LRU eviction for performance optimization.
 /// Delegates actual Parquet reading to ParquetStreamReader.
 /// </summary>
 public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
 {
-    private readonly Lock _streamCacheLock = new();
+    private readonly Lock _cacheLock = new();
     private readonly BlobContainerClient _containerClient;
-    private readonly Dictionary<string, byte[]> _streamCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly LinkedList<string> _cacheAccessOrder = new();
-    private readonly Dictionary<string, LinkedListNode<string>> _cacheNodes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _filePathCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LinkedList<string> _lruOrder = new();
+    private readonly Dictionary<string, LinkedListNode<string>> _lruNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SemaphoreSlim> _downloadLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SocketsHttpHandler? _socketsHttpHandler;
+    private readonly HttpClient? _httpClient;
+    private readonly string _tempDirectory;
     
     private readonly long _maxCacheSizeBytes;
     private long _currentCacheSizeBytes;
@@ -37,7 +40,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCacheSizeBytes);
         
-        var socketsHttpHandler = new SocketsHttpHandler
+        _socketsHttpHandler = new SocketsHttpHandler
         {
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
             PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
@@ -47,7 +50,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
             ResponseDrainTimeout = TimeSpan.FromSeconds(2)
         };
 
-        var httpClient = new HttpClient(socketsHttpHandler)
+        _httpClient = new HttpClient(_socketsHttpHandler)
         {
             Timeout = TimeSpan.FromMinutes(10),
             DefaultRequestVersion = new Version(2, 0)
@@ -55,7 +58,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
 
         var blobClientOptions = new BlobClientOptions
         {
-            Transport = new HttpClientTransport(httpClient),
+            Transport = new HttpClientTransport(_httpClient),
             Retry =
             {
                 MaxRetries = 3,
@@ -71,6 +74,9 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         var serviceClient = new BlobServiceClient(connectionString, blobClientOptions);
         _containerClient = serviceClient.GetBlobContainerClient(containerName);
         _maxCacheSizeBytes = maxCacheSizeBytes;
+
+        _tempDirectory = Path.Combine(Path.GetTempPath(), "ParquetSharpLINQ", Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_tempDirectory);
     }
 
     public AzureBlobParquetReader(
@@ -81,15 +87,18 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCacheSizeBytes);
         
         _maxCacheSizeBytes = maxCacheSizeBytes;
+
+        _tempDirectory = Path.Combine(Path.GetTempPath(), "ParquetSharpLINQ", Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_tempDirectory);
     }
 
     public void Dispose()
     {
-        lock (_streamCacheLock)
+        lock (_cacheLock)
         {
-            _streamCache.Clear();
-            _cacheAccessOrder.Clear();
-            _cacheNodes.Clear();
+            _filePathCache.Clear();
+            _lruOrder.Clear();
+            _lruNodes.Clear();
             _currentCacheSizeBytes = 0;
 
             foreach (var semaphore in _downloadLocks.Values)
@@ -98,23 +107,34 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
             }
             _downloadLocks.Clear();
         }
+
+        _httpClient?.Dispose();
+        _socketsHttpHandler?.Dispose();
+
+        try
+        {
+            Directory.Delete(_tempDirectory, true);
+        }
+        catch
+        {
+            // Ignore errors during cleanup
+        }
     }
 
     /// <summary>
-    /// Opens a stream to the specified blob path. Returns a cached copy if available.
+    /// Opens a stream to the specified blob path. Returns a cached file stream if available.
     /// Uses double-checked locking to prevent duplicate downloads.
     /// </summary>
     /// <param name="blobPath">The path to the blob within the container.</param>
-    /// <returns>A memory stream containing the blob data, or null if the blob doesn't exist.</returns>
-    private MemoryStream? OpenStream(string blobPath)
+    /// <returns>A read-only FileStream for the blob, or null if the blob doesn't exist.</returns>
+    private FileStream? OpenStream(string blobPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blobPath);
 
-        // Fast path: check cache without full lock
-        var cachedData = TryGetCachedData(blobPath);
-        if (cachedData != null)
+        var cachedPath = TryGetCachedFilePath(blobPath);
+        if (cachedPath != null && File.Exists(cachedPath))
         {
-            return CreateStreamFromBytes(cachedData);
+            return CreateSequentialReadStream(cachedPath);
         }
 
         var downloadLock = GetOrCreateDownloadLock(blobPath);
@@ -124,61 +144,25 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         try
         {
             // Double-check cache after acquiring lock
-            cachedData = TryGetCachedData(blobPath);
-            if (cachedData != null)
+            cachedPath = TryGetCachedFilePath(blobPath);
+            if (cachedPath != null && File.Exists(cachedPath))
             {
-                return CreateStreamFromBytes(cachedData);
+                return CreateSequentialReadStream(cachedPath);
             }
 
-            // Download and cache
-            var downloadedData = DownloadBlobToMemory(blobPath);
-            if (downloadedData == null)
+            // Download to file and cache
+            var downloadedPath = DownloadBlobToFile(blobPath);
+            if (downloadedPath == null)
             {
                 return null;
             }
 
-            CacheData(blobPath, downloadedData);
-            return CreateStreamFromBytes(downloadedData);
+            CacheFilePath(blobPath, downloadedPath);
+            return CreateSequentialReadStream(downloadedPath);
         }
         finally
         {
             downloadLock.Release();
-        }
-    }
-
-    /// <summary>
-    /// Attempts to retrieve cached data for the specified blob path and updates LRU order.
-    /// </summary>
-    /// <returns>The cached byte array if found; otherwise, null.</returns>
-    private byte[]? TryGetCachedData(string blobPath)
-    {
-        lock (_streamCacheLock)
-        {
-            if (!_streamCache.TryGetValue(blobPath, out var cached))
-            {
-                return null;
-            }
-
-            // Update LRU: move to end (most recently used)
-            if (_cacheNodes.TryGetValue(blobPath, out var node))
-            {
-                _cacheAccessOrder.Remove(node);
-                _cacheAccessOrder.AddLast(node);
-            }
-
-            return cached;
-        }
-    }
-
-    /// <summary>
-    /// Checks if a blob is already cached without updating LRU order.
-    /// Used for fast-path checks in prefetch scenarios.
-    /// </summary>
-    private bool IsCached(string blobPath)
-    {
-        lock (_streamCacheLock)
-        {
-            return _streamCache.ContainsKey(blobPath);
         }
     }
 
@@ -188,119 +172,170 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     /// </summary>
     private SemaphoreSlim GetOrCreateDownloadLock(string blobPath)
     {
-        lock (_streamCacheLock)
+        lock (_cacheLock)
         {
-            if (!_downloadLocks.TryGetValue(blobPath, out var downloadLock))
+            if (_downloadLocks.TryGetValue(blobPath, out var downloadLock))
             {
-                downloadLock = new SemaphoreSlim(1, 1);
-                _downloadLocks[blobPath] = downloadLock;
+                return downloadLock;
             }
+            downloadLock = new SemaphoreSlim(1, 1);
+            _downloadLocks[blobPath] = downloadLock;
             return downloadLock;
         }
     }
 
     /// <summary>
-    /// Downloads the specified blob to a byte array.
+    /// Attempts to retrieve cached local file path for the specified blob and updates LRU order.
     /// </summary>
-    /// <returns>A byte array containing the blob data, or null if the blob doesn't exist.</returns>
-    private byte[]? DownloadBlobToMemory(string blobPath)
+    /// <returns>The cached local file path if found; otherwise, null.</returns>
+    private string? TryGetCachedFilePath(string blobPath)
     {
-        var blobClient = _containerClient.GetBlobClient(blobPath);
-
-        try
+        lock (_cacheLock)
         {
-            using var memoryStream = new MemoryStream();
-            blobClient.DownloadTo(memoryStream);
-            return memoryStream.ToArray();
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously downloads the specified blob to a byte array.
-    /// </summary>
-    /// <returns>A byte array containing the blob data, or null if the blob doesn't exist.</returns>
-    private async Task<byte[]?> DownloadBlobToMemoryAsync(string blobPath)
-    {
-        var blobClient = _containerClient.GetBlobClient(blobPath);
-
-        try
-        {
-            using var memoryStream = new MemoryStream();
-            await blobClient.DownloadToAsync(memoryStream).ConfigureAwait(false);
-            return memoryStream.ToArray();
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Adds data to the cache with LRU eviction if needed.
-    /// Ensures the cache doesn't exceed the maximum size by evicting least recently used items.
-    /// </summary>
-    private void CacheData(string blobPath, byte[] data)
-    {
-        lock (_streamCacheLock)
-        {
-            // If already cached (race condition), don't cache again
-            if (_streamCache.ContainsKey(blobPath))
+            if (!_filePathCache.TryGetValue(blobPath, out var cachedPath))
             {
-                return;
+                return null;
             }
 
-            var dataSize = data.Length;
-
-            // Don't cache if the single item is larger than max cache size
-            if (dataSize > _maxCacheSizeBytes)
+            // Update LRU: move to end (most recently used)
+            if (_lruNodes.TryGetValue(blobPath, out var node))
             {
+                _lruOrder.Remove(node);
+                _lruOrder.AddLast(node);
+            }
+
+            return cachedPath;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a blob is already cached without updating LRU order.
+    /// Used for fast-path checks in prefetch scenarios.
+    /// </summary>
+    private bool IsCached(string blobPath)
+    {
+        lock (_cacheLock)
+        {
+            return _filePathCache.ContainsKey(blobPath);
+        }
+    }
+
+    /// <summary>
+    /// Downloads the specified blob to a local temp file and returns the file path.
+    /// Returns null when the blob does not exist (404).
+    /// </summary>
+    private string? DownloadBlobToFile(string blobPath)
+    {
+        var blobClient = _containerClient.GetBlobClient(blobPath);
+
+        var finalPath = Path.Combine(_tempDirectory, Uri.EscapeDataString(blobPath).Replace('/', Path.DirectorySeparatorChar));
+        var tempPath = finalPath + ".tmp";
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
+
+            blobClient.DownloadTo(tempPath);
+
+            File.Delete(finalPath);
+            File.Move(tempPath, finalPath);
+
+            return finalPath;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* ignore */ }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously downloads the specified blob to a local temp file and returns the file path.
+    /// Returns null when the blob does not exist (404).
+    /// </summary>
+    private async Task<string?> DownloadBlobToFileAsync(string blobPath)
+    {
+        var blobClient = _containerClient.GetBlobClient(blobPath);
+
+        var finalPath = Path.Combine(_tempDirectory, Uri.EscapeDataString(blobPath).Replace('/', Path.DirectorySeparatorChar));
+        var tempPath = finalPath + ".tmp";
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
+
+            await blobClient.DownloadToAsync(tempPath).ConfigureAwait(false);
+
+            File.Delete(finalPath);
+            File.Move(tempPath, finalPath);
+
+            return finalPath;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* ignore */ }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Adds a local file path to the cache with LRU eviction if needed.
+    /// </summary>
+    private void CacheFilePath(string blobPath, string filePath)
+    {
+        var fileInfo = new FileInfo(filePath);
+        var dataSize = fileInfo.Length;
+
+        lock (_cacheLock)
+        {
+            // If already cached (race condition), don't cache again
+            if (_filePathCache.ContainsKey(blobPath))
+            {
+                try { if (File.Exists(filePath)) File.Delete(filePath); } catch { /* ignore */ }
                 return;
             }
 
             // Evict least recently used items until we have space
-            while (_currentCacheSizeBytes + dataSize > _maxCacheSizeBytes && _cacheAccessOrder.Count > 0)
+            while (_currentCacheSizeBytes + dataSize > _maxCacheSizeBytes && _lruOrder.Count > 0)
             {
-                var oldestKey = _cacheAccessOrder.First!.Value;
+                var oldestKey = _lruOrder.First!.Value;
                 EvictCacheItem(oldestKey);
             }
 
             // Add new item to cache
-            _streamCache[blobPath] = data;
-            var node = _cacheAccessOrder.AddLast(blobPath);
-            _cacheNodes[blobPath] = node;
+            _filePathCache[blobPath] = filePath;
+            var node = _lruOrder.AddLast(blobPath);
+            _lruNodes[blobPath] = node;
             _currentCacheSizeBytes += dataSize;
         }
     }
 
     /// <summary>
-    /// Evicts a single item from the cache.
+    /// Evicts a single item from the cache and deletes its local file.
     /// </summary>
     private void EvictCacheItem(string blobPath)
     {
-        if (_streamCache.TryGetValue(blobPath, out var data))
+        if (_filePathCache.TryGetValue(blobPath, out var filePath))
         {
-            _currentCacheSizeBytes -= data.Length;
-            _streamCache.Remove(blobPath);
+            try
+            {
+                var fi = new FileInfo(filePath);
+                _currentCacheSizeBytes -= fi.Exists ? fi.Length : 0;
+                if (fi.Exists) fi.Delete();
+            }
+            catch
+            {
+                // ignore file deletion errors
+            }
+
+            _filePathCache.Remove(blobPath);
         }
 
-        if (_cacheNodes.TryGetValue(blobPath, out var node))
+        if (_lruNodes.TryGetValue(blobPath, out var node))
         {
-            _cacheAccessOrder.Remove(node);
-            _cacheNodes.Remove(blobPath);
+            _lruOrder.Remove(node);
+            _lruNodes.Remove(blobPath);
         }
-    }
-
-    /// <summary>
-    /// Creates a read-only memory stream from a byte array without copying.
-    /// The stream wraps the array directly for better performance.
-    /// </summary>
-    private static MemoryStream CreateStreamFromBytes(byte[] data)
-    {
-        return new MemoryStream(data, writable: false);
     }
 
     public IEnumerable<Column> GetColumns(string filePath)
@@ -333,9 +368,9 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         ArgumentNullException.ThrowIfNull(filePaths);
 
         var options = new ParallelOptions { MaxDegreeOfParallelism = maxParallelism };
-        await Parallel.ForEachAsync(filePaths, options, async (blobPath, cancellationToken) =>
+        await Parallel.ForEachAsync(filePaths, options, async (blobPath, ct) =>
         {
-            await PrefetchBlobAsync(blobPath);
+            await PrefetchBlobAsync(blobPath, ct);
         });
     }
 
@@ -343,7 +378,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     /// Downloads and caches a single blob without creating a MemoryStream wrapper.
     /// Optimized for prefetch scenarios where the stream object is not needed.
     /// </summary>
-    private async Task PrefetchBlobAsync(string blobPath)
+    private async Task PrefetchBlobAsync(string blobPath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blobPath);
 
@@ -356,7 +391,7 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
         var downloadLock = GetOrCreateDownloadLock(blobPath);
 
         // Acquire blob-specific lock to prevent concurrent downloads
-        await downloadLock.WaitAsync();
+        await downloadLock.WaitAsync(cancellationToken);
         try
         {
             // Double-check cache after acquiring lock
@@ -366,10 +401,10 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
             }
 
             // Download and cache (no stream creation)
-            var downloadedData = await DownloadBlobToMemoryAsync(blobPath);
-            if (downloadedData != null)
+            var downloadedPath = await DownloadBlobToFileAsync(blobPath);
+            if (downloadedPath != null)
             {
-                CacheData(blobPath, downloadedData);
+                CacheFilePath(blobPath, downloadedPath);
             }
         }
         finally
@@ -382,11 +417,22 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     /// Opens a stream for the specified file path and validates that it exists.
     /// </summary>
     /// <exception cref="FileNotFoundException">Thrown when the blob is not found.</exception>
-    private MemoryStream OpenAndValidateStream(string filePath)
+    private FileStream OpenAndValidateStream(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
         var stream = OpenStream(filePath);
         return stream ?? throw new FileNotFoundException($"Blob not found: {filePath}", filePath);
+    }
+
+    /// <summary>
+    /// Creates a read-only FileStream optimized for sequential reads.
+    /// </summary>
+    private static FileStream CreateSequentialReadStream(string path)
+    {
+        return new FileStream(
+            path, FileMode.Open, 
+            FileAccess.Read, FileShare.Read, 
+            bufferSize: 4096, options: FileOptions.SequentialScan);
     }
 }
