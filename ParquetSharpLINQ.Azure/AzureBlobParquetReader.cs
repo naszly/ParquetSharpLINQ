@@ -1,8 +1,7 @@
+using Azure;
 using Azure.Core;
 using Azure.Core.Pipeline;
-using Azure.Storage;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using ParquetSharp;
 using ParquetSharpLINQ.ParquetSharp;
 
@@ -13,14 +12,12 @@ using Lock = System.Object;
 #endif
 
 /// <summary>
-/// Parquet reader that streams files from Azure Blob Storage without downloading to disk.
+/// Parquet reader that loads files from Azure Blob Storage into memory (no local disk usage)
 /// Uses in-memory caching with LRU eviction for performance optimization.
 /// Delegates actual Parquet reading to ParquetStreamReader.
 /// </summary>
 public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
 {
-    private const int MegaByte = 1024 * 1024;
-    
     private readonly Lock _streamCacheLock = new();
     private readonly BlobContainerClient _containerClient;
     private readonly Dictionary<string, byte[]> _streamCache = new(StringComparer.OrdinalIgnoreCase);
@@ -210,19 +207,16 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     {
         var blobClient = _containerClient.GetBlobClient(blobPath);
 
-        if (!blobClient.Exists())
+        try
+        {
+            using var memoryStream = new MemoryStream();
+            blobClient.DownloadTo(memoryStream);
+            return memoryStream.ToArray();
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
         {
             return null;
         }
-
-        var properties = blobClient.GetProperties();
-        var blobSize = properties.Value.ContentLength;
-        var streamCapacity = (int)Math.Min(blobSize, int.MaxValue);
-
-        using var memoryStream = new MemoryStream(streamCapacity);
-        var downloadOptions = CreateDownloadOptions(blobSize);
-        blobClient.DownloadTo(memoryStream, downloadOptions);
-        return memoryStream.GetBuffer();
     }
 
     /// <summary>
@@ -233,64 +227,16 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     {
         var blobClient = _containerClient.GetBlobClient(blobPath);
 
-        var existsResponse = await blobClient.ExistsAsync().ConfigureAwait(false);
-        if (!existsResponse.Value)
+        try
+        {
+            using var memoryStream = new MemoryStream();
+            await blobClient.DownloadToAsync(memoryStream).ConfigureAwait(false);
+            return memoryStream.ToArray();
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
         {
             return null;
         }
-
-        var properties = await blobClient.GetPropertiesAsync().ConfigureAwait(false);
-        var blobSize = properties.Value.ContentLength;
-
-        var streamCapacity = (int)Math.Min(blobSize, int.MaxValue);
-
-        using var memoryStream = new MemoryStream(streamCapacity);
-        var downloadOptions = CreateDownloadOptions(blobSize);
-        await blobClient.DownloadToAsync(memoryStream, downloadOptions).ConfigureAwait(false);
-        return memoryStream.GetBuffer();
-    }
-    
-    private static BlobDownloadToOptions CreateDownloadOptions(long blobSize)
-    {
-        return blobSize switch
-        {
-            < MegaByte => new BlobDownloadToOptions
-            {
-                TransferOptions = new StorageTransferOptions
-                {
-                    MaximumTransferSize = (int)blobSize,
-                    InitialTransferSize = (int)blobSize,
-                    MaximumConcurrency = 1
-                }
-            },
-            < 10 * MegaByte => new BlobDownloadToOptions
-            {
-                TransferOptions = new StorageTransferOptions
-                {
-                    MaximumTransferSize = 1 * MegaByte,
-                    InitialTransferSize = 1 * MegaByte,
-                    MaximumConcurrency = 2
-                }
-            },
-            < 100 * MegaByte => new BlobDownloadToOptions
-            {
-                TransferOptions = new StorageTransferOptions
-                {
-                    MaximumTransferSize = 4 * MegaByte,
-                    InitialTransferSize = 4 * MegaByte,
-                    MaximumConcurrency = 4
-                }
-            },
-            _ => new BlobDownloadToOptions
-            {
-                TransferOptions = new StorageTransferOptions
-                {
-                    MaximumTransferSize = 8 * MegaByte,
-                    InitialTransferSize = 8 * MegaByte,
-                    MaximumConcurrency = 8
-                }
-            }
-        };
     }
 
     /// <summary>
