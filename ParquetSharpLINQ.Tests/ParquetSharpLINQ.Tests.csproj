@@ -29,4 +29,10 @@
         <ProjectReference Include="..\ParquetSharpLINQ.DataGenerator\ParquetSharpLINQ.DataGenerator.csproj"/>
         <ProjectReference Include="..\ParquetSharpLINQ.Benchmarks\ParquetSharpLINQ.Benchmarks.csproj"/>
     </ItemGroup>
+    <ItemGroup>
+        <!-- Exclude Python venv directory to prevent C++ test_util.h from being picked up -->
+        <Compile Remove="Integration\venv\**" />
+        <EmbeddedResource Remove="Integration\venv\**" />
+        <None Remove="Integration\venv\**" />
+    </ItemGroup>
 </Project>
