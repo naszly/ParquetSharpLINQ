@@ -13,7 +13,7 @@ public sealed class Partition
     public IReadOnlyDictionary<string, string> Values { get; init; } = new Dictionary<string, string>();
 
     /// <summary>
-    ///     List of parquet files within this partition.
+    ///     List of parquet files within this partition with optional metadata and statistics.
     /// </summary>
-    public required IReadOnlyList<string> Files { get; init; }
+    public required IReadOnlyList<ParquetFile> Files { get; init; }
 }

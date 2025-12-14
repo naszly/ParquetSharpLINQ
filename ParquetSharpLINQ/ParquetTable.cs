@@ -129,7 +129,7 @@ public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T 
                 {
                     try
                     {
-                        await asyncReader.PrefetchAsync(filesToPrefetch);
+                        await asyncReader.PrefetchAsync(filesToPrefetch.Select(f => f.Path));
                     }
                     catch
                     {

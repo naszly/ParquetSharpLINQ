@@ -13,13 +13,20 @@ public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
 {
     private readonly string _rootPath;
     private readonly Lazy<DeltaLogReader> _deltaLogReader;
+    private readonly PartitionStatisticsEnricher? _statisticsEnricher;
 
     /// <summary>
     /// Creates a new file system partition discovery strategy.
     /// </summary>
     /// <param name="rootPath">Root directory to scan for partitions</param>
     /// <param name="cacheExpiration">Optional cache expiration duration for Delta log (default: 5 minutes)</param>
-    public FileSystemPartitionDiscovery(string rootPath, TimeSpan? cacheExpiration = null)
+    /// <param name="statisticsProvider">Optional statistics provider for enriching file metadata with row-group statistics</param>
+    /// <param name="statisticsParallelism">Max degree of parallelism for statistics enrichment (default: CPU count)</param>
+    public FileSystemPartitionDiscovery(
+        string rootPath, 
+        TimeSpan? cacheExpiration = null,
+        IParquetStatisticsProvider? statisticsProvider = null,
+        int statisticsParallelism = 0)
     {
         if (string.IsNullOrEmpty(rootPath))
         {
@@ -33,17 +40,25 @@ public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
 
         _rootPath = rootPath;
         _deltaLogReader = new Lazy<DeltaLogReader>(() => new DeltaLogReader(_rootPath, cacheExpiration));
+        _statisticsEnricher = statisticsProvider != null 
+            ? new PartitionStatisticsEnricher(statisticsProvider, statisticsParallelism)
+            : null;
     }
 
     public IEnumerable<Partition> DiscoverPartitions()
     {
         var deltaLogPath = Path.Combine(_rootPath, "_delta_log");
-        if (Directory.Exists(deltaLogPath))
+        var partitions = Directory.Exists(deltaLogPath) 
+            ? DiscoverFromDeltaLog() 
+            : DiscoverFromFileSystem();
+
+        // Enrich with statistics if provider is configured
+        if (_statisticsEnricher != null)
         {
-            return DiscoverFromDeltaLog();
+            partitions = _statisticsEnricher.Enrich(partitions);
         }
 
-        return DiscoverFromFileSystem();
+        return partitions;
     }
 
     public void ClearDeltaLogCache()
@@ -87,7 +102,7 @@ public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
         {
             Path = Path.GetFullPath(kvp.Key),
             Values = kvp.Value.Values,
-            Files = kvp.Value.Files
+            Files = kvp.Value.Files.Select(f => new ParquetFile { Path = f }).ToList()
         });
     }
 
@@ -113,7 +128,12 @@ public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
 
             var values = HivePartitionParser.ParsePartitionValues(relative);
 
-            yield return new Partition { Path = Path.GetFullPath(dir), Values = values, Files = parquetFiles};
+            yield return new Partition
+            { 
+                Path = Path.GetFullPath(dir), 
+                Values = values, 
+                Files = parquetFiles.Select(f => new ParquetFile { Path = f }).ToList()
+            };
         }
     }
 }

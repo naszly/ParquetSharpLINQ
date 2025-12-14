@@ -14,6 +14,7 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
     private readonly BlobContainerClient _containerClient;
     private readonly string _blobPrefix;
     private readonly Lazy<AzureDeltaLogReader> _deltaLogReader;
+    private readonly PartitionStatisticsEnricher? _statisticsEnricher;
 
     /// <summary>
     /// Creates a new Azure Blob Storage partition discovery strategy.
@@ -21,25 +22,35 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
     /// <param name="containerClient">Azure Blob Container client</param>
     /// <param name="blobPrefix">Optional blob prefix/subfolder path (e.g., "data/sales/" or empty for root)</param>
     /// <param name="cacheExpiration">Optional cache expiration duration for Delta log (default: 5 minutes)</param>
+    /// <param name="statisticsProvider">Optional statistics provider for enriching file metadata with row-group statistics</param>
+    /// <param name="statisticsParallelism">Max degree of parallelism for statistics enrichment (default: CPU count)</param>
     public AzureBlobPartitionDiscovery(
         BlobContainerClient containerClient,
         string blobPrefix = "",
-        TimeSpan? cacheExpiration = null)
+        TimeSpan? cacheExpiration = null,
+        IParquetStatisticsProvider? statisticsProvider = null,
+        int statisticsParallelism = 0)
     {
         _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
         _blobPrefix = NormalizePrefix(blobPrefix);
         _deltaLogReader = new Lazy<AzureDeltaLogReader>(() => 
             new AzureDeltaLogReader(_containerClient, _blobPrefix, cacheExpiration));
+        _statisticsEnricher = statisticsProvider != null 
+            ? new PartitionStatisticsEnricher(statisticsProvider, statisticsParallelism)
+            : null;
     }
 
     public IEnumerable<Partition> DiscoverPartitions()
     {
-        if (IsDeltaTable())
+        var partitions = IsDeltaTable() ? DiscoverFromDeltaLog() : DiscoverFromBlobs();
+        
+        // Enrich with statistics if provider is configured
+        if (_statisticsEnricher != null)
         {
-            return DiscoverFromDeltaLog();
+            partitions = _statisticsEnricher.Enrich(partitions);
         }
 
-        return DiscoverFromBlobs();
+        return partitions;
     }
 
     public void ClearDeltaLogCache()
@@ -116,7 +127,7 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
         {
             Path = kvp.Key,
             Values = kvp.Value.Values,
-            Files = kvp.Value.Files
+            Files = kvp.Value.Files.Select(f => new ParquetFile { Path = f }).ToList()
         });
     }
 
@@ -152,6 +163,7 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
             
             var filesArray = files
                 .Where(f => GetDirectory(f).Equals(path, StringComparison.OrdinalIgnoreCase))
+                .Select(f => new ParquetFile { Path = f })
                 .ToImmutableArray();
             
             var values = HivePartitionParser.ParsePartitionValues(relativePath);

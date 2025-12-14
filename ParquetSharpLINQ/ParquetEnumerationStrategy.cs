@@ -69,14 +69,14 @@ internal class ParquetEnumerationStrategy<T> where T : new()
 
             foreach (var file in filesToRead)
             {
-                var availableColumnNames = _reader.GetColumns(file)
+                var availableColumnNames = _reader.GetColumns(file.Path)
                     .Select(column => column.Name)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .ToList();
 
                 var columnsToRead = ResolveColumnsToRead(_mapper, availableColumnNames, requestedColumns);
 
-                foreach (var row in _reader.ReadRows(file, columnsToRead))
+                foreach (var row in _reader.ReadRows(file.Path, columnsToRead))
                 {
                     var enrichedRow = EnrichWithPartitionValues(row, partition.Values);
                     yield return _mapper.Map(enrichedRow);
