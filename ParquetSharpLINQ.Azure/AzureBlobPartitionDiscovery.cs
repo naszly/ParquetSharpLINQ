@@ -149,10 +149,12 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
             files.Add(blob.Name);
 
             var directory = GetDirectory(blob.Name);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                partitionPaths.Add(directory);
-            }
+            partitionPaths.Add(directory);
+        }
+
+        if (files.Count == 0)
+        {
+            yield break;
         }
 
         foreach (var path in partitionPaths.OrderBy(p => p))
@@ -167,6 +169,11 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
                 .Where(f => GetDirectory(f).Equals(path, StringComparison.OrdinalIgnoreCase))
                 .Select(f => new ParquetFile { Path = f })
                 .ToImmutableArray();
+            
+            if (filesArray.Length == 0)
+            {
+                continue; // Skip empty partitions
+            }
             
             var values = HivePartitionParser.ParsePartitionValues(relativePath);
             yield return new Partition { Path = path, Values = values, Files = filesArray};
