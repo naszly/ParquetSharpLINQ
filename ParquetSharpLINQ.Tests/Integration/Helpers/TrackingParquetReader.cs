@@ -2,7 +2,7 @@ using ParquetSharp;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.Helpers;
 
 /// <summary>
 /// Test reader that tracks which files are actually read.

@@ -3,8 +3,9 @@ using Azure.Storage.Blobs;
 using ParquetSharpLINQ.Azure;
 using ParquetSharpLINQ.Benchmarks;
 using ParquetSharpLINQ.DataGenerator;
+using ParquetSharpLINQ.Tests.Integration.Helpers;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.Azure;
 
 /// <summary>
 /// Integration tests for Azure Blob Storage using Azurite emulator.
@@ -13,36 +14,28 @@ namespace ParquetSharpLINQ.Tests.Integration;
 [TestFixture]
 [Category("Integration")]
 [Category("Azure")]
-public class AzureIntegrationTests
+public class AzureBlobStorageTests
 {
     [OneTimeSetUp]
     public async Task OneTimeSetup()
     {
-        if (!await IsAzuriteRunning())
-            Assert.Ignore(
-                "Azurite is not running. Start it with: docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite");
-
-        _containerName = $"test-{Guid.NewGuid():N}";
-        var serviceClient = new BlobServiceClient(AzuriteConnectionString);
-        _containerClient = serviceClient.GetBlobContainerClient(_containerName);
-        await _containerClient.CreateAsync();
-
-        await UploadTestDataAsync();
+        try
+        {
+            _containerClient = await AzuriteTestHelper.CreateContainerAsync("parquet-test");
+            await UploadTestDataAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Assert.Inconclusive(ex.Message);
+        }
     }
 
     [OneTimeTearDown]
     public async Task OneTimeTearDown()
     {
-        if (_containerClient != null && await _containerClient.ExistsAsync()) await _containerClient.DeleteAsync();
+        await AzuriteTestHelper.DeleteContainerAsync(_containerClient);
     }
 
-    private const string AzuriteConnectionString =
-        "DefaultEndpointsProtocol=http;" +
-        "AccountName=devstoreaccount1;" +
-        "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;" +
-        "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
-
-    private string _containerName = null!;
     private BlobContainerClient? _containerClient;
     private const int RecordsPerPartition = 100;
     private const int Years = 2;
@@ -52,19 +45,6 @@ public class AzureIntegrationTests
     private BlobContainerClient ContainerClient => 
         _containerClient ?? throw new InvalidOperationException("Container client is not initialized.");
 
-    private static async Task<bool> IsAzuriteRunning()
-    {
-        try
-        {
-            var client = new BlobServiceClient(AzuriteConnectionString);
-            await client.GetAccountInfoAsync();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 
     private async Task UploadTestDataAsync()
     {
@@ -102,7 +82,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_FullTableScan_ReturnsAllRecords()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
         var expectedCount = Years * MonthsPerYear * Regions * RecordsPerPartition;
 
         var results = table.ToList();
@@ -115,7 +95,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_PartitionPruning_ByYear_OnlyReadsMatchingPartitions()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
         var expectedCount = MonthsPerYear * Regions * RecordsPerPartition;
 
         var results = table.Where(s => s.Year == 2024).ToList();
@@ -127,7 +107,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_PartitionPruning_ByRegion_OnlyReadsMatchingPartitions()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
         var expectedCount = Years * MonthsPerYear * RecordsPerPartition;
 
         var results = table.Where(s => s.Region == "eu-west").ToList();
@@ -139,7 +119,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_PartitionPruning_MultipleFilters_OnlyReadsSinglePartition()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
         var expectedCount = RecordsPerPartition;
 
         var results = table
@@ -153,7 +133,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_CountWithPredicate_ReturnsCorrectCount()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
         var expectedCount = MonthsPerYear * Regions * RecordsPerPartition;
 
         var count = table.Count(s => s.Year == 2024);
@@ -164,7 +144,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_AnyWithPredicate_ReturnsTrue()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var hasData = table.Any(s => s.Year == 2024 && s.Region == "eu-west");
 
@@ -174,7 +154,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_FirstOrDefaultWithPredicate_ReturnsRecord()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var record = table.FirstOrDefault(s => s.Year == 2024 && s.Month == 2);
 
@@ -186,7 +166,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_ColumnProjection_OnlyReadsRequestedColumns()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var results = table
             .Where(s => s.Year == 2024)
@@ -203,7 +183,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_CachingPerformance_SecondQueryIsFaster()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var sw = Stopwatch.StartNew();
         var count1 = table.Count(s => s.Year == 2024 && s.Month == 1);
@@ -220,7 +200,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_ComplexQuery_CombinesMultipleOperations()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var results = table
             .Where(s => s.Year == 2024 && s.Region == "us-east")
@@ -239,7 +219,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_MultipleQueries_OnSameTable_WorkIndependently()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var count2023 = table.Count(s => s.Year == 2023);
         var count2024 = table.Count(s => s.Year == 2024);
@@ -275,7 +255,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_NoMatchingPartitions_ReturnsEmpty()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var results = table.Where(s => s.Year == 2025).ToList();
 
@@ -285,7 +265,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_StreamingFromBlob_WorksCorrectly()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var count = 0;
         foreach (var record in table.Where(s => s.Year == 2024))
@@ -313,8 +293,8 @@ public class AzureIntegrationTests
     public void Azure_WithLinqFilter_OnlyReadsMatchingPartitions()
     {
         using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
-            AzuriteConnectionString,
-            _containerName
+            AzuriteTestHelper.ConnectionString,
+            ContainerClient.Name
         );
 
         var results = table.Where(s => s.Year == 2024).ToList();
@@ -327,7 +307,7 @@ public class AzureIntegrationTests
     [Test]
     public void Azure_Aggregations_CalculateCorrectly()
     {
-        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteConnectionString, _containerName);
+        using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
 
         var allRecords = table.Where(s => s.Year == 2024 && s.Month == 1).ToList();
         var sum = allRecords.Sum(s => s.TotalAmount);
@@ -375,8 +355,8 @@ public class AzureIntegrationTests
 
             // Query with blob prefix
             using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
-                AzuriteConnectionString,
-                _containerName,
+                AzuriteTestHelper.ConnectionString,
+                ContainerClient.Name,
                 subfolderPrefix);
 
             var count = table.Count(s => s.Year == 2025);

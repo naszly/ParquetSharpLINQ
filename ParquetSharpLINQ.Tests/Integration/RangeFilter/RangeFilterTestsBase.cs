@@ -2,14 +2,13 @@ using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Interfaces;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.RangeFilter;
 
 /// <summary>
 /// Base class for range filter integration tests.
-/// Provides common test logic that can be run against different storage backends.
+/// Provides common test cases that work across different storage backends (FileSystem, Azure).
 /// </summary>
-[TestFixture]
-public abstract class RangeFilterIntegrationTestsBase
+public abstract class RangeFilterTestsBase
 {
     /// <summary>
     /// Gets the set of files that were actually read.

@@ -1,13 +1,15 @@
-namespace ParquetSharpLINQ.Tests.Integration;
+using ParquetSharpLINQ.Tests.Integration.Delta;
+
+namespace ParquetSharpLINQ.Tests.Integration.FileSystem;
 
 [TestFixture]
 [Category("Integration")]
-public class DeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
+public class FileSystemDeltaLakeTests : DeltaLakeTestsBase
 {
     private static readonly string TestDataPath = Path.Combine(
         TestContext.CurrentContext.TestDirectory,
         "..", "..", "..", "..",
-        "ParquetSharpLINQ.Tests", "Integration", "delta_test_data");
+        "ParquetSharpLINQ.Tests", "Integration", "Delta", "delta_test_data");
 
     [OneTimeSetUp]
     public void OneTimeSetUp()
@@ -16,7 +18,7 @@ public class DeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         {
             Assert.Inconclusive(
                 $"Delta test data not found at {TestDataPath}. " +
-                "Run 'python3 Integration/generate_delta_test_data.py' to generate test data.");
+                "Run 'python3 Integration/Delta/generate_delta_test_data.py' to generate test data.");
         }
     }
 

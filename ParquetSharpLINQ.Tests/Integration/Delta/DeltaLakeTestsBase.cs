@@ -1,12 +1,12 @@
 using ParquetSharpLINQ.Attributes;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.Delta;
 
 /// <summary>
 /// Base class for Delta Lake integration tests with shared test logic.
 /// Subclasses provide table creation strategy (local vs Azure).
 /// </summary>
-public abstract class DeltaLakeIntegrationTestsBase
+public abstract class DeltaLakeTestsBase
 {
     protected abstract ParquetTable<T> CreateTable<T>(string tableName) where T : new();
 

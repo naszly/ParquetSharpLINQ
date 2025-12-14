@@ -1,6 +1,8 @@
 using ParquetSharp;
+using ParquetSharpLINQ.Tests.Integration.Helpers;
+using ParquetSharpLINQ.Tests.Integration.RangeFilter;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.FileSystem;
 
 /// <summary>
 /// Range filter integration tests for local file system storage.
@@ -8,7 +10,7 @@ namespace ParquetSharpLINQ.Tests.Integration;
 [TestFixture]
 [Category("Integration")]
 [Category("LocalFiles")]
-public class FileSystemRangeFilterIntegrationTests : RangeFilterIntegrationTestsBase
+public class FileSystemRangeFilterTests : RangeFilterTestsBase
 {
     private string _testDirectory = null!;
     private TrackingParquetReader _trackingReader = null!;

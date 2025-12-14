@@ -2,12 +2,12 @@ using ParquetSharpLINQ.Benchmarks;
 using ParquetSharpLINQ.DataGenerator;
 using ParquetSharpLINQ.Discovery;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.FileSystem;
 
 [TestFixture]
 [Category("Integration")]
 [Category("LocalFiles")]
-public class IntegrationTests
+public class FileSystemStorageTests
 {
     [OneTimeSetUp]
     public void OneTimeSetup()

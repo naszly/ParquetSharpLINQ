@@ -4,7 +4,7 @@ using ParquetSharpLINQ.Azure;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.Helpers;
 
 /// <summary>
 /// Test reader that tracks which Azure blobs are actually read.

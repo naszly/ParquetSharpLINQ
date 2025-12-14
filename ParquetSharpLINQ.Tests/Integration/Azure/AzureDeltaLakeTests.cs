@@ -1,19 +1,19 @@
 using System.Diagnostics;
 using Azure.Storage.Blobs;
 using ParquetSharpLINQ.Azure;
+using ParquetSharpLINQ.Tests.Integration.Delta;
+using ParquetSharpLINQ.Tests.Integration.Helpers;
 
-namespace ParquetSharpLINQ.Tests.Integration;
+namespace ParquetSharpLINQ.Tests.Integration.Azure;
 
 [TestFixture]
 [Category("Integration")]
-public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
+public class AzureDeltaLakeTests : DeltaLakeTestsBase
 {
-    private const string AzuriteConnectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
-    
     private static readonly string LocalDeltaPath = Path.Combine(
         TestContext.CurrentContext.TestDirectory,
         "..", "..", "..", "..",
-        "ParquetSharpLINQ.Tests", "Integration", "delta_test_data");
+        "ParquetSharpLINQ.Tests", "Integration", "Delta", "delta_test_data");
 
     private BlobServiceClient? _blobServiceClient;
     private readonly List<string> _containersToCleanup = [];
@@ -25,6 +25,9 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         { "delta_with_updates", "delta-with-updates" },
         { "delta_string_partitions", "delta-string-partitions" }
     };
+    
+    private BlobServiceClient BlobServiceClient => 
+        _blobServiceClient ?? throw new InvalidOperationException("BlobServiceClient is not initialized");
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
@@ -33,12 +36,12 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         {
             Assert.Inconclusive(
                 $"Delta test data not found at {LocalDeltaPath}. " +
-                "Run 'python3 Integration/generate_delta_test_data.py' to generate test data first.");
+                "Run 'python3 Integration/Delta/generate_delta_test_data.py' to generate test data first.");
         }
 
         try
         {
-            _blobServiceClient = new BlobServiceClient(AzuriteConnectionString);
+            _blobServiceClient = new BlobServiceClient(AzuriteTestHelper.ConnectionString);
 
             await UploadDeltaTableToAzure("simple-delta", "simple_delta");
             await UploadDeltaTableToAzure("partitioned-delta", "partitioned_delta");
@@ -75,18 +78,13 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
 
     protected override ParquetTable<T> CreateTable<T>(string tableName)
     {
-        if (_blobServiceClient == null)
-        {
-            Assert.Inconclusive("Azurite not available");
-        }
-
         if (!TableNameToContainerMapping.TryGetValue(tableName, out var containerName))
         {
             Assert.Fail($"Unknown table name: {tableName}");
         }
 
         Debug.Assert(containerName != null, nameof(containerName) + " != null");
-        return ParquetTable<T>.Factory.FromAzureBlob(AzuriteConnectionString, containerName);
+        return ParquetTable<T>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, containerName);
     }
 
     private async Task UploadDeltaTableToAzure(string containerName, string tableName)
@@ -117,12 +115,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
     [Test]
     public void DeltaLog_ExistsAndContainsJsonFiles()
     {
-        if (_blobServiceClient == null)
-        {
-            Assert.Inconclusive("Azurite not available");
-        }
-
-        var containerClient = _blobServiceClient.GetBlobContainerClient("simple-delta");
+        var containerClient = BlobServiceClient.GetBlobContainerClient("simple-delta");
         var deltaLogPrefix = "_delta_log/";
         var deltaLogBlobs = containerClient.GetBlobs(prefix: deltaLogPrefix);
 
@@ -137,14 +130,9 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
     [Test]
     public async Task DeltaTable_WithBlobPrefix_CanBeQueried()
     {
-        if (_blobServiceClient == null)
-        {
-            Assert.Inconclusive("Azurite not available");
-        }
-
         var containerName = $"delta-prefix-test-{Guid.NewGuid():N}";
         var blobPrefix = "analytics/tables/";
-        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var containerClient = BlobServiceClient.GetBlobContainerClient(containerName);
 
         await containerClient.CreateIfNotExistsAsync();
         _containersToCleanup.Add(containerName);
@@ -152,7 +140,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         await UploadDeltaTableWithPrefix(containerClient, "simple_delta", blobPrefix);
 
         using var table = ParquetTable<SimpleDeltaRecord>.Factory.FromAzureBlob(
-            AzuriteConnectionString,
+            AzuriteTestHelper.ConnectionString,
             containerName,
             blobPrefix);
 
@@ -166,14 +154,9 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
     [Test]
     public async Task PartitionedDeltaTable_WithBlobPrefix_PartitionPruningWorks()
     {
-        if (_blobServiceClient == null)
-        {
-            Assert.Inconclusive("Azurite not available");
-        }
-
         var containerName = $"delta-partition-prefix-{Guid.NewGuid():N}";
         var blobPrefix = "warehouse/partitioned/";
-        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var containerClient = BlobServiceClient.GetBlobContainerClient(containerName);
 
         await containerClient.CreateIfNotExistsAsync();
         _containersToCleanup.Add(containerName);
@@ -181,7 +164,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         await UploadDeltaTableWithPrefix(containerClient, "partitioned_delta", blobPrefix);
 
         using var table = ParquetTable<PartitionedDeltaRecord>.Factory.FromAzureBlob(
-            AzuriteConnectionString,
+            AzuriteTestHelper.ConnectionString,
             containerName,
             blobPrefix);
 
@@ -203,14 +186,9 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
     [Test]
     public async Task DeltaTable_WithBlobPrefix_DoesNotReadRootData()
     {
-        if (_blobServiceClient == null)
-        {
-            Assert.Inconclusive("Azurite not available");
-        }
-
         var containerName = $"delta-isolation-{Guid.NewGuid():N}";
         var blobPrefix = "subfolder/data/";
-        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var containerClient = BlobServiceClient.GetBlobContainerClient(containerName);
 
         await containerClient.CreateIfNotExistsAsync();
         _containersToCleanup.Add(containerName);
@@ -223,7 +201,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
 
         // Read from subfolder should only get delta_with_updates (6 records)
         using var tableWithPrefix = ParquetTable<DeltaProductRecord>.Factory.FromAzureBlob(
-            AzuriteConnectionString,
+            AzuriteTestHelper.ConnectionString,
             containerName,
             blobPrefix);
 
@@ -233,7 +211,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
 
         // Verify root still has simple_delta (5 records)
         using var rootTable = ParquetTable<SimpleDeltaRecord>.Factory.FromAzureBlob(
-            AzuriteConnectionString,
+            AzuriteTestHelper.ConnectionString,
             containerName,
             "");
 
