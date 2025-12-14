@@ -40,10 +40,11 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
         // Analyze the query to extract optimization hints
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        // Execute query using enumeration strategy
+        // Execute query using enumeration strategy with statistics-based pruning
         var sourceQueryable = _enumerationStrategy.Enumerate(
             analysis.PartitionFilters.Count > 0 ? analysis.PartitionFilters : null,
-            analysis.RequestedColumns
+            analysis.RequestedColumns,
+            analysis.RangeFilters.Count > 0 ? analysis.RangeFilters : null
         ).AsQueryable();
 
         var rewritten = ParquetExpressionReplacer<T>.Replace(expression, sourceQueryable);

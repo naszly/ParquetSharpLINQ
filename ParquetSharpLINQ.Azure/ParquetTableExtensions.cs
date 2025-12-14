@@ -60,6 +60,7 @@ public static class ParquetTableFactoryExtensions
         /// <param name="cacheExpiration">Optional cache expiration for Delta log (default: 5 minutes)</param>
         /// <param name="maxCacheSizeBytes">Optional max cache size for blob downloads</param>
         /// <param name="mapper">Optional custom mapper (for DI/testing). If null, uses source-generated mapper.</param>
+        /// <param name="reader">Optional custom reader (for DI/testing). If null, uses AzureBlobParquetReader.</param>
         /// <returns>A new ParquetTable instance for querying Azure Blob Storage</returns>
         /// <example>
         /// var table = ParquetTable&lt;SalesRecord&gt;.Factory.FromAzureBlob(containerClient);
@@ -68,12 +69,19 @@ public static class ParquetTableFactoryExtensions
             string blobPrefix = "",
             TimeSpan? cacheExpiration = null,
             long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes,
-            IParquetMapper<T>? mapper = null)
+            IParquetMapper<T>? mapper = null,
+            IAsyncParquetReader? reader = null)
         {
             ArgumentNullException.ThrowIfNull(containerClient);
         
-            var discoveryStrategy = new AzureBlobPartitionDiscovery(containerClient, blobPrefix, cacheExpiration);
-            var reader = new AzureBlobParquetReader(containerClient, maxCacheSizeBytes);
+            var statisticsProvider = new AzureBlobParquetStatisticsProvider(containerClient);
+            
+            var discoveryStrategy = new AzureBlobPartitionDiscovery(
+                containerClient, 
+                blobPrefix, 
+                cacheExpiration,
+                statisticsProvider);
+            reader ??= new AzureBlobParquetReader(containerClient, maxCacheSizeBytes);
             return new ParquetTable<T>(discoveryStrategy, reader, mapper);
         }
     }

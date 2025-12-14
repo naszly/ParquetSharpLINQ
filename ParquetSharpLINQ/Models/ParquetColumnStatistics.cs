@@ -79,6 +79,21 @@ public sealed class ParquetColumnStatistics
         }
     }
 
+    public static T? DecodeStatisticValue<T>(
+        byte[] raw,
+        PhysicalType physicalType,
+        LogicalType? logicalType)
+    {
+        var tempStats = new ParquetColumnStatistics
+        {
+            PhysicalType = physicalType,
+            LogicalType = logicalType
+        };
+
+        var decoded = tempStats.DecodeValue(raw, typeof(T));
+        return decoded is T typedValue ? typedValue : default;
+    }
+
     private object? DecodeValue(byte[] raw, Type targetType)
     {
         return targetType switch
