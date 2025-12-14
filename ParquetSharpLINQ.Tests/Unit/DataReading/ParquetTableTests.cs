@@ -1,9 +1,10 @@
 using NSubstitute;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.DataReading;
 
 [TestFixture]
 [Category("Unit")]
+[Category("DataReading")]
 public class ParquetTableTests
 {
     [SetUp]

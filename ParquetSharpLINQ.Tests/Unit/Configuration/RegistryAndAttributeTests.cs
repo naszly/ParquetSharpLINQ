@@ -1,10 +1,11 @@
 using ParquetSharpLINQ.Attributes;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.Configuration;
 
 [TestFixture]
 [Category("Unit")]
-public class ParquetColumnAttributeTests
+[Category("Configuration")]
+public class RegistryAndAttributeTests
 {
     [Test]
     public void DefaultConstructor_SetsDefaultValues()

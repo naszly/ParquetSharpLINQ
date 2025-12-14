@@ -3,10 +3,11 @@ using ParquetSharpLINQ.Attributes;
 using NSubstitute;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.DataReading;
 
 [TestFixture]
 [Category("Unit")]
+[Category("DataReading")]
 public class ColumnReadingTests
 {
     [Test]

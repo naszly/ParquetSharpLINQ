@@ -3,10 +3,11 @@ using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.Query;
 
 [TestFixture]
 [Category("Unit")]
+[Category("Query")]
 public class PartitionOnlyQueryTests
 {
     [Test]

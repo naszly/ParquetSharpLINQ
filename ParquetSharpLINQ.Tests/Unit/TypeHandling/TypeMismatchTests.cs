@@ -1,10 +1,11 @@
 using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.TypeHandling;
 
 [TestFixture]
 [Category("Unit")]
+[Category("TypeHandling")]
 public class TypeMismatchTests
 {
     [Test]
@@ -426,4 +427,3 @@ public class EntityWithNullableDateOnly
     public DateOnly? EventDate { get; set; }
 }
 #endif
-

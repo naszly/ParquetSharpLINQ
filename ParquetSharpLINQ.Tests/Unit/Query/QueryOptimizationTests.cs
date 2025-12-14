@@ -2,10 +2,11 @@ using NSubstitute;
 using ParquetSharp;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.Query;
 
 [TestFixture]
 [Category("Unit")]
+[Category("Query")]
 public class QueryOptimizationTests
 {
     [SetUp]

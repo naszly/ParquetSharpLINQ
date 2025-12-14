@@ -2,10 +2,11 @@ using NSubstitute;
 using ParquetSharpLINQ.Constants;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.TypeHandling;
 
 [TestFixture]
 [Category("Unit")]
+[Category("TypeHandling")]
 public class SourceGenerationTests
 {
     private IParquetReader _mockReader;
