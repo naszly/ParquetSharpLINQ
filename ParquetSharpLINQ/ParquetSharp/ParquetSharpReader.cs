@@ -1,4 +1,5 @@
 using ParquetSharp;
+using ParquetSharpLINQ.Interfaces;
 
 namespace ParquetSharpLINQ.ParquetSharp;
 

@@ -1,4 +1,4 @@
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Interfaces;
 
 /// <summary>
 /// Extended interface for Parquet readers that support async operations and prefetching.

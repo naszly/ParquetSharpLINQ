@@ -1,5 +1,6 @@
 using ParquetSharpLINQ.Benchmarks;
 using ParquetSharpLINQ.DataGenerator;
+using ParquetSharpLINQ.Discovery;
 
 namespace ParquetSharpLINQ.Tests.Integration;
 

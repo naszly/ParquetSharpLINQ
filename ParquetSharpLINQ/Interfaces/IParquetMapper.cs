@@ -1,6 +1,6 @@
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Interfaces;
 
 public interface IParquetMapper<out T>
 {

@@ -1,4 +1,5 @@
 using ParquetSharp;
+using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Tests.Unit.PartitionDiscovery;

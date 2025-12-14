@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using ParquetSharp;
 using ParquetSharpLINQ.Models;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Statistics;
 
 /// <summary>
 /// Extracts Parquet statistics from streams.

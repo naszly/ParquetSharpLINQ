@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Query;
 
 /// <summary>
 /// Analyzes LINQ expression trees to extract query optimization hints.

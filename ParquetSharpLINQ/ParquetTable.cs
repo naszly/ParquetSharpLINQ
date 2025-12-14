@@ -1,8 +1,11 @@
 using ParquetSharpLINQ.Attributes;
+using ParquetSharpLINQ.Discovery;
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
 using System.Collections;
 using System.Linq.Expressions;
 using System.Reflection;
+using ParquetSharpLINQ.Query;
 
 namespace ParquetSharpLINQ;
 

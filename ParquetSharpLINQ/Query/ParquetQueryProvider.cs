@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Linq.Expressions;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Query;
 
 internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
 {

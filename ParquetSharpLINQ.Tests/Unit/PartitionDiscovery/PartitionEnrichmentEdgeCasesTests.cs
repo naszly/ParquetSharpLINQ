@@ -1,4 +1,6 @@
+using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Models;
+using ParquetSharpLINQ.Statistics;
 
 namespace ParquetSharpLINQ.Tests.Unit.PartitionDiscovery;
 

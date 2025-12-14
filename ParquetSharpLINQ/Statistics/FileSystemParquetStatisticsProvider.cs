@@ -1,6 +1,7 @@
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Statistics;
 
 /// <summary>
 /// File system implementation of IParquetStatisticsProvider.

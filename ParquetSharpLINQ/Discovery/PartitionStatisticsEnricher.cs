@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Discovery;
 
 /// <summary>
 /// Helper class for enriching partitions with statistics in parallel.

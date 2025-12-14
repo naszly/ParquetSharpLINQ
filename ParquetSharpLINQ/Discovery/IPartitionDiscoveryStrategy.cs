@@ -1,6 +1,6 @@
 using ParquetSharpLINQ.Models;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Discovery;
 
 /// <summary>
 /// Strategy interface for discovering partitions from different storage backends.

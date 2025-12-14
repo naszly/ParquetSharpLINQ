@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using ParquetSharpLINQ.Query;
 
 namespace ParquetSharpLINQ.Tests.Unit.Query;
 

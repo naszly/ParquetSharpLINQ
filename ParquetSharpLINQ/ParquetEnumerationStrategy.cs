@@ -1,5 +1,7 @@
 using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Constants;
+using ParquetSharpLINQ.Discovery;
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
 using ParquetSharpLINQ.ParquetSharp;
 using System.Reflection;

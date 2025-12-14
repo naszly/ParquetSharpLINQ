@@ -1,3 +1,5 @@
+using ParquetSharpLINQ.Discovery;
+
 namespace ParquetSharpLINQ.Tests.Unit.PartitionDiscovery;
 
 [TestFixture]

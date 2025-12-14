@@ -1,7 +1,7 @@
 using ParquetSharp;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Interfaces;
 
 public interface IParquetReader
 {

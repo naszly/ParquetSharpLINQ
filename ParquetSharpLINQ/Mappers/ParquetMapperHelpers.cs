@@ -1,6 +1,6 @@
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Mappers;
 
 /// <summary>
 /// Shared helper methods for generated ParquetMapper classes.

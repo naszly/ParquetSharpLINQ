@@ -1,6 +1,6 @@
 using ParquetSharpLINQ.Models;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Interfaces;
 
 /// <summary>
 /// Provides the ability to enrich Parquet file metadata with statistics.

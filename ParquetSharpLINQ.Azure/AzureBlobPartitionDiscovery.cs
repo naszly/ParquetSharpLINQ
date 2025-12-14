@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using Azure.Storage.Blobs;
+using ParquetSharpLINQ.Discovery;
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
 
 namespace ParquetSharpLINQ.Azure;

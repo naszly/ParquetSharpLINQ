@@ -1,4 +1,6 @@
 using NSubstitute;
+using ParquetSharpLINQ.Discovery;
+using ParquetSharpLINQ.Interfaces;
 
 namespace ParquetSharpLINQ.Tests.Unit.DataReading;
 

@@ -62,6 +62,8 @@ public class ParquetMapperGenerator : IIncrementalGenerator
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using ParquetSharpLINQ;");
+        sb.AppendLine("using ParquetSharpLINQ.Interfaces;");
+        sb.AppendLine("using ParquetSharpLINQ.Mappers;");
         sb.AppendLine();
         sb.AppendLine($"namespace {namespaceName}");
         sb.AppendLine("{");

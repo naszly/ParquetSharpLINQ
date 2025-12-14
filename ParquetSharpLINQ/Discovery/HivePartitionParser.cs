@@ -1,4 +1,4 @@
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Discovery;
 
 /// <summary>
 /// Utility for parsing Hive-style partition paths (e.g., "year=2024/month=06").

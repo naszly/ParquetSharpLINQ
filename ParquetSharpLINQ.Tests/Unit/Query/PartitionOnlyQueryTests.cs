@@ -1,6 +1,8 @@
 using NSubstitute;
 using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
+using ParquetSharpLINQ.Discovery;
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Tests.Unit.Query;

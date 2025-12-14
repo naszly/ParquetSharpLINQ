@@ -1,5 +1,7 @@
 using Azure.Storage.Blobs;
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
+using ParquetSharpLINQ.Statistics;
 
 namespace ParquetSharpLINQ.Azure;
 

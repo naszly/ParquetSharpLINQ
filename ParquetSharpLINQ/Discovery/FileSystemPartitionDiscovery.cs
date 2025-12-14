@@ -1,8 +1,9 @@
 using System.Collections.Immutable;
 using ParquetSharpLINQ.Delta;
+using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
 
-namespace ParquetSharpLINQ;
+namespace ParquetSharpLINQ.Discovery;
 
 /// <summary>
 /// File system-based partition discovery strategy.

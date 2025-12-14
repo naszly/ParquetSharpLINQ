@@ -2,6 +2,7 @@ using Azure.Storage.Blobs;
 using ParquetSharpLINQ.Azure;
 using ParquetSharpLINQ.DataGenerator;
 using ParquetSharpLINQ.Models;
+using ParquetSharpLINQ.Statistics;
 
 namespace ParquetSharpLINQ.Tests.Integration;
 
