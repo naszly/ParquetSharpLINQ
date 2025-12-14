@@ -24,11 +24,12 @@ This library extends ParquetSharpLINQ with Azure Blob Storage streaming capabili
 
 **Hive-style Parquet Files:**
 ```csharp
+using ParquetSharpLINQ;
 using ParquetSharpLINQ.Azure;
 
 // Create table from Azure Blob Storage
 var connectionString = "DefaultEndpointsProtocol=https;AccountName=...";
-using var table = new AzureBlobParquetTable<SalesRecord>(
+using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
     connectionString: connectionString,
     containerName: "sales-data"
 );
@@ -43,10 +44,11 @@ var results = table
 
 **Delta Lake Tables:**
 ```csharp
+using ParquetSharpLINQ;
 using ParquetSharpLINQ.Azure;
 
 // Delta Lake tables work automatically - just point to the container
-using var deltaTable = new AzureBlobParquetTable<SalesRecord>(
+using var deltaTable = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
     connectionString: connectionString,
     containerName: "delta-sales"  // Container with _delta_log/ prefix
 );
@@ -58,46 +60,71 @@ var results = deltaTable
     .ToList();
 ```
 
-## Classes
+## Factory Methods
 
-### AzureBlobParquetTable<T>
+### ParquetTable\<T\>.Factory.FromAzureBlob()
 
-Parquet table for querying Azure Blob Storage with Hive-style partitioning and Delta Lake support.
+Creates a ParquetTable for querying Parquet files from Azure Blob Storage with Hive-style partitioning and Delta Lake support.
 
+**With connection string:**
 ```csharp
-// With connection string
-var table = new AzureBlobParquetTable<T>(connectionString, containerName);
-
-// With existing BlobContainerClient
-var table = new AzureBlobParquetTable<T>(containerClient);
-
-// With blob prefix (subfolder)
-var table = new AzureBlobParquetTable<T>(connectionString, containerName, "data/sales/");
+var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
+    connectionString: "DefaultEndpointsProtocol=https;AccountName=...",
+    containerName: "sales-data"
+);
 ```
 
-**Delta Lake Support:**
+**With existing BlobContainerClient:**
+```csharp
+var containerClient = new BlobContainerClient(connectionString, containerName);
+var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(containerClient);
+```
+
+**With blob prefix (subfolder):**
+```csharp
+var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
+    connectionString: connectionString,
+    containerName: "data",
+    blobPrefix: "sales/2024/"
+);
+```
+
+**With custom cache settings:**
+```csharp
+var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
+    connectionString: connectionString,
+    containerName: "sales-data",
+    blobPrefix: "",
+    cacheExpiration: TimeSpan.FromMinutes(10),
+    maxCacheSizeBytes: 8L * 1024 * 1024 * 1024  // 8 GB
+);
+```
+
+**Features:**
+- Automatically configures optimized BlobContainerClient with HTTP/2, connection pooling, and retry logic
+- Supports both Hive-style partitioning and Delta Lake
 - Automatically detects `_delta_log/` blobs in the container
 - Reads Delta transaction logs from Azure Blob Storage
 - Only queries active files according to the Delta log
 
+## Core Components
+
 ### AzureBlobParquetReader
 
-Low-level reader for streaming Parquet files from Azure.
+Low-level reader for streaming Parquet files from Azure with file-based caching and LRU eviction.
 
 ```csharp
-var reader = new AzureBlobParquetReader(connectionString, containerName);
-var table = new ParquetTable<T>("", reader: reader);
+var containerClient = new BlobContainerClient(connectionString, containerName);
+var reader = new AzureBlobParquetReader(containerClient, maxCacheSizeBytes: 4L * 1024 * 1024 * 1024);
+var discoveryStrategy = new AzureBlobPartitionDiscovery(containerClient);
+var table = new ParquetTable<SalesRecord>(discoveryStrategy, reader);
 ```
 
-### AzurePartitionDiscovery
+### AzureBlobPartitionDiscovery
 
 Discovers Hive-style partitions and Delta Lake tables in Azure Blob Storage.
 
-```csharp
-var partitions = AzurePartitionDiscovery.Discover(containerClient);
-```
-
-**Supports:**
+**Features:**
 - Hive-style partitioning (`year=2024/region=us-east/`)
 - Delta Lake transaction logs (`_delta_log/*.json`)
 
@@ -107,7 +134,7 @@ var partitions = AzurePartitionDiscovery.Discover(containerClient);
 
 ```csharp
 var connectionString = "DefaultEndpointsProtocol=https;AccountName=...";
-var table = new AzureBlobParquetTable<T>(connectionString, "container");
+var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(connectionString, "container");
 ```
 
 ### Managed Identity (Production - Recommended)
@@ -120,7 +147,7 @@ var containerClient = new BlobServiceClient(
     new DefaultAzureCredential()
 ).GetBlobContainerClient("container");
 
-var table = new AzureBlobParquetTable<T>(containerClient);
+var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(containerClient);
 ```
 
 ## Testing with Azurite
@@ -140,7 +167,7 @@ const string AzuriteConnectionString =
     "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
 
 // Test your code
-using var table = new AzureBlobParquetTable<SalesRecord>(
+using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
     AzuriteConnectionString,
     "test-container"
 );

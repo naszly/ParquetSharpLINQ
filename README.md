@@ -59,7 +59,9 @@ public class SalesRecord
 ### Query Local Files
 
 ```csharp
-using var table = new ParquetTable<SalesRecord>("/data/sales");
+using ParquetSharpLINQ;
+
+using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem("/data/sales");
 
 var count = table.Count(s => s.Region == "eu-west" && s.Year == 2024);
 var results = table.Where(s => s.TotalAmount > 1000).ToList();
@@ -68,8 +70,10 @@ var results = table.Where(s => s.TotalAmount > 1000).ToList();
 ### Query Delta Lake Tables
 
 ```csharp
+using ParquetSharpLINQ;
+
 // Automatically detects and reads _delta_log/
-using var table = new ParquetTable<SalesRecord>("/data/delta-sales");
+using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem("/data/delta-sales");
 
 var results = table.Where(s => s.Year == 2024).ToList();
 ```
@@ -77,9 +81,10 @@ var results = table.Where(s => s.Year == 2024).ToList();
 ### Query Azure Blob Storage
 
 ```csharp
-using ParquetSharpLINQ.Azure;
+using ParquetSharpLINQ;
+using ParquetSharpLINQ.Azure;  // Extension methods for Azure support
 
-using var table = new AzureBlobParquetTable<SalesRecord>(
+using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
     connectionString: "DefaultEndpointsProtocol=https;AccountName=...",
     containerName: "sales-data");
 
@@ -209,9 +214,20 @@ See [ParquetSharpLINQ.Benchmarks/README.md](ParquetSharpLINQ.Benchmarks/README.m
 
 ## Architecture
 
-- **ParquetSharpLINQ** - Core LINQ query provider
-- **ParquetSharpLINQ.Generator** - Source generator for mappers
-- **ParquetSharpLINQ.Azure** - Azure Blob Storage support
+- **ParquetSharpLINQ** - Core LINQ query provider with composition-based design
+  - `ParquetTable<T>` - Main queryable interface (implements `IQueryable<T>`)
+  - `ParquetTableFactory<T>` - Factory for creating ParquetTable instances
+  - `ParquetQueryProvider<T>` - LINQ expression tree visitor and query optimizer
+  - `ParquetEnumerationStrategy<T>` - Executes queries with partition pruning and column projection
+  - `IPartitionDiscoveryStrategy` - Pluggable partition discovery interface
+  - `IParquetReader` - Pluggable Parquet reading interface
+  - `FileSystemPartitionDiscovery` - Discovers Hive partitions and Delta logs from local filesystem
+  - `ParquetSharpReader` - Reads Parquet files from local filesystem
+- **ParquetSharpLINQ.Generator** - Source generator for zero-reflection data mappers
+- **ParquetSharpLINQ.Azure** - Azure Blob Storage extension package
+  - `ParquetTableFactoryExtensions` - Adds `FromAzureBlob()` factory method
+  - `AzureBlobPartitionDiscovery` - Discovers partitions and Delta logs from Azure Blob Storage
+  - `AzureBlobParquetReader` - Streams Parquet files from Azure with LRU caching
 - **ParquetSharpLINQ.Tests** - Unit and integration tests
 - **ParquetSharpLINQ.Benchmarks** - Performance testing
 
