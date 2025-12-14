@@ -1,6 +1,4 @@
 using Azure;
-using Azure.Core;
-using Azure.Core.Pipeline;
 using Azure.Storage.Blobs;
 using ParquetSharp;
 using ParquetSharpLINQ.ParquetSharp;
@@ -15,6 +13,7 @@ using Lock = System.Object;
 /// Parquet reader that downloads files from Azure Blob Storage to a local temp directory.
 /// Uses file-based caching with LRU eviction for performance optimization.
 /// Delegates actual Parquet reading to ParquetStreamReader.
+/// Accepts a pre-configured BlobContainerClient for maximum flexibility and performance tuning.
 /// </summary>
 public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
 {
@@ -24,68 +23,17 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
     private readonly LinkedList<string> _lruOrder = new();
     private readonly Dictionary<string, LinkedListNode<string>> _lruNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SemaphoreSlim> _downloadLocks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly SocketsHttpHandler? _socketsHttpHandler;
-    private readonly HttpClient? _httpClient;
     private readonly string _tempDirectory;
     
     private readonly long _maxCacheSizeBytes;
     private long _currentCacheSizeBytes;
 
     public AzureBlobParquetReader(
-        string connectionString, 
-        string containerName,
-        long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes)
+        BlobContainerClient containerClient, long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCacheSizeBytes);
         
-        _socketsHttpHandler = new SocketsHttpHandler
-        {
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-            MaxConnectionsPerServer = 100,
-            EnableMultipleHttp2Connections = true,
-            ConnectTimeout = TimeSpan.FromSeconds(30),
-            ResponseDrainTimeout = TimeSpan.FromSeconds(2)
-        };
-
-        _httpClient = new HttpClient(_socketsHttpHandler)
-        {
-            Timeout = TimeSpan.FromMinutes(10),
-            DefaultRequestVersion = new Version(2, 0)
-        };
-
-        var blobClientOptions = new BlobClientOptions
-        {
-            Transport = new HttpClientTransport(_httpClient),
-            Retry =
-            {
-                MaxRetries = 3,
-                Delay = TimeSpan.FromSeconds(1),
-                MaxDelay = TimeSpan.FromSeconds(10),
-                Mode = RetryMode.Exponential,
-                NetworkTimeout = TimeSpan.FromSeconds(100)
-            },
-            Diagnostics = { IsLoggingEnabled = false }
-        };
-
-        
-        var serviceClient = new BlobServiceClient(connectionString, blobClientOptions);
-        _containerClient = serviceClient.GetBlobContainerClient(containerName);
-        _maxCacheSizeBytes = maxCacheSizeBytes;
-
-        _tempDirectory = Path.Combine(Path.GetTempPath(), "ParquetSharpLINQ", Guid.NewGuid().ToString());
-        Directory.CreateDirectory(_tempDirectory);
-    }
-
-    public AzureBlobParquetReader(
-        BlobContainerClient containerClient,
-        long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes)
-    {
         _containerClient = containerClient;
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCacheSizeBytes);
-        
         _maxCacheSizeBytes = maxCacheSizeBytes;
 
         _tempDirectory = Path.Combine(Path.GetTempPath(), "ParquetSharpLINQ", Guid.NewGuid().ToString());
@@ -107,9 +55,6 @@ public sealed class AzureBlobParquetReader : IAsyncParquetReader, IDisposable
             }
             _downloadLocks.Clear();
         }
-
-        _httpClient?.Dispose();
-        _socketsHttpHandler?.Dispose();
 
         try
         {

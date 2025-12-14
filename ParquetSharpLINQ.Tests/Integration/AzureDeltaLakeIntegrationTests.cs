@@ -86,7 +86,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         }
 
         Debug.Assert(containerName != null, nameof(containerName) + " != null");
-        return new AzureBlobParquetTable<T>(AzuriteConnectionString, containerName);
+        return ParquetTable<T>.Factory.FromAzureBlob(AzuriteConnectionString, containerName);
     }
 
     private async Task UploadDeltaTableToAzure(string containerName, string tableName)
@@ -151,7 +151,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
 
         await UploadDeltaTableWithPrefix(containerClient, "simple_delta", blobPrefix);
 
-        using var table = new AzureBlobParquetTable<SimpleDeltaRecord>(
+        using var table = ParquetTable<SimpleDeltaRecord>.Factory.FromAzureBlob(
             AzuriteConnectionString,
             containerName,
             blobPrefix);
@@ -180,7 +180,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
 
         await UploadDeltaTableWithPrefix(containerClient, "partitioned_delta", blobPrefix);
 
-        using var table = new AzureBlobParquetTable<PartitionedDeltaRecord>(
+        using var table = ParquetTable<PartitionedDeltaRecord>.Factory.FromAzureBlob(
             AzuriteConnectionString,
             containerName,
             blobPrefix);
@@ -222,7 +222,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
         await UploadDeltaTableWithPrefix(containerClient, "delta_with_updates", blobPrefix);
 
         // Read from subfolder should only get delta_with_updates (6 records)
-        using var tableWithPrefix = new AzureBlobParquetTable<DeltaProductRecord>(
+        using var tableWithPrefix = ParquetTable<DeltaProductRecord>.Factory.FromAzureBlob(
             AzuriteConnectionString,
             containerName,
             blobPrefix);
@@ -232,7 +232,7 @@ public class AzureDeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
             "Should only read from subfolder, not root");
 
         // Verify root still has simple_delta (5 records)
-        using var rootTable = new AzureBlobParquetTable<SimpleDeltaRecord>(
+        using var rootTable = ParquetTable<SimpleDeltaRecord>.Factory.FromAzureBlob(
             AzuriteConnectionString,
             containerName,
             "");

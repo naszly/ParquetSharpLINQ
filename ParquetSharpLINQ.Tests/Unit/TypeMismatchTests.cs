@@ -25,7 +25,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 1000 });
             }
 
-            using var table = new ParquetTable<EntityWithByte>(tempDir);
+            using var table = ParquetTable<EntityWithByte>.Factory.FromFileSystem(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -55,7 +55,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { -1 });
             }
 
-            using var table = new ParquetTable<EntityWithByte>(tempDir);
+            using var table = ParquetTable<EntityWithByte>.Factory.FromFileSystem(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -85,7 +85,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 40000 });
             }
 
-            using var table = new ParquetTable<EntityWithShort>(tempDir);
+            using var table = ParquetTable<EntityWithShort>.Factory.FromFileSystem(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -115,7 +115,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 200 });
             }
 
-            using var table = new ParquetTable<EntityWithByte>(tempDir);
+            using var table = ParquetTable<EntityWithByte>.Factory.FromFileSystem(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));
@@ -147,7 +147,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { "123" });
             }
 
-            using var table = new ParquetTable<EntityWithInt>(tempDir);
+            using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));
@@ -179,7 +179,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { "not a number" });
             }
 
-            using var table = new ParquetTable<EntityWithInt>(tempDir);
+            using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
             
             Assert.Throws<FormatException>(() => table.ToList());
         }
@@ -209,7 +209,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 3000000000L });
             }
 
-            using var table = new ParquetTable<EntityWithInt>(tempDir);
+            using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -239,7 +239,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { -3000000000L });
             }
 
-            using var table = new ParquetTable<EntityWithInt>(tempDir);
+            using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
             
             Assert.Throws<OverflowException>(() => table.ToList());
         }
@@ -269,7 +269,7 @@ public class TypeMismatchTests
                 valueWriter.WriteBatch(new[] { 1000000L });
             }
 
-            using var table = new ParquetTable<EntityWithInt>(tempDir);
+            using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));
@@ -303,7 +303,7 @@ public class TypeMismatchTests
             }
 
             // Read it with an entity that has DateTime property
-            using var table = new ParquetTable<EntityWithDateTime>(tempDir);
+            using var table = ParquetTable<EntityWithDateTime>.Factory.FromFileSystem(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));
@@ -338,7 +338,7 @@ public class TypeMismatchTests
             }
 
             // Read it with an entity that has DateOnly property
-            using var table = new ParquetTable<EntityWithDateOnly>(tempDir);
+            using var table = ParquetTable<EntityWithDateOnly>.Factory.FromFileSystem(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(1));
@@ -372,7 +372,7 @@ public class TypeMismatchTests
             }
 
             // Read it with an entity that has nullable DateOnly property
-            using var table = new ParquetTable<EntityWithNullableDateOnly>(tempDir);
+            using var table = ParquetTable<EntityWithNullableDateOnly>.Factory.FromFileSystem(tempDir);
             var results = table.ToList();
             
             Assert.That(results, Has.Count.EqualTo(2));

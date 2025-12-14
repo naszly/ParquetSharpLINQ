@@ -149,28 +149,28 @@ public class ParquetQueryBenchmarks
     [Benchmark(Description = "Full table scan (no filters)")]
     public int FullTableScan()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table.Count();
     }
 
     [Benchmark(Description = "Partition pruning (single partition)")]
     public int SinglePartitionQuery()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table.Count(s => s.Year == 2024 && s.Month == 6 && s.Region == "us-east");
     }
 
     [Benchmark(Description = "Partition pruning (multiple partitions)")]
     public int MultiplePartitionsQuery()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table.Count(s => s.Year == 2024 && s.Region == "us-east");
     }
 
     [Benchmark(Description = "Column projection (select few columns)")]
     public int ColumnProjection()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table
             .Select(s => new { s.Id, s.ProductName, s.TotalAmount })
             .Count();
@@ -179,7 +179,7 @@ public class ParquetQueryBenchmarks
     [Benchmark(Description = "Combined: partition + projection")]
     public int PartitionPruningWithProjection()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table
             .Where(s => s.Year == 2024 && s.Month == 6)
             .Select(s => new { s.Id, s.ProductName })
@@ -189,7 +189,7 @@ public class ParquetQueryBenchmarks
     [Benchmark(Description = "Filter on data column")]
     public decimal FilterOnDataColumn()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table
             .Where(s => s.TotalAmount > 1000)
             .Sum(s => s.TotalAmount);
@@ -198,7 +198,7 @@ public class ParquetQueryBenchmarks
     [Benchmark(Description = "Complex query (partition + filter + aggregation)")]
     public decimal ComplexQuery()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table
             .Where(s => s.Year == 2024)
             .Where(s => s.Region == "us-east")
@@ -209,7 +209,7 @@ public class ParquetQueryBenchmarks
     [Benchmark(Description = "GroupBy aggregation")]
     public int GroupByAggregation()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table
             .Where(s => s.Year == 2024)
             .GroupBy(s => s.Region)
@@ -219,14 +219,14 @@ public class ParquetQueryBenchmarks
     [Benchmark(Description = "First record (early termination)")]
     public SalesRecord? FirstRecord()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table.FirstOrDefault(s => s.Year == 2024);
     }
 
     [Benchmark(Description = "Take 100 records")]
     public int Take100()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table
             .Where(s => s.Year == 2024)
             .Take(100)
@@ -265,7 +265,7 @@ public class PartitionDiscoveryBenchmarks
     [Benchmark]
     public int DiscoverPartitions()
     {
-        using var table = new ParquetTable<SalesRecord>(_dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table.DiscoverPartitions().Count();
     }
 }

@@ -25,26 +25,27 @@ public class PartitionDiscoveryTests
     [Test]
     public void Discover_WithNullPath_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() => PartitionDiscovery.Discover(null!).ToList());
+        Assert.Throws<ArgumentException>(() => new FileSystemPartitionDiscovery(null!));
     }
 
     [Test]
     public void Discover_WithEmptyPath_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() => PartitionDiscovery.Discover("").ToList());
+        Assert.Throws<ArgumentException>(() => new FileSystemPartitionDiscovery(""));
     }
 
     [Test]
     public void Discover_WithNonExistentDirectory_ThrowsDirectoryNotFoundException()
     {
         Assert.Throws<DirectoryNotFoundException>(() =>
-            PartitionDiscovery.Discover("/nonexistent/path").ToList());
+            new FileSystemPartitionDiscovery("/nonexistent/path"));
     }
 
     [Test]
     public void Discover_WithNoParquetFiles_ReturnsEmpty()
     {
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var discovery = new FileSystemPartitionDiscovery(_testDirectory);
+        var partitions = discovery.DiscoverPartitions().ToList();
 
         Assert.That(partitions, Is.Empty);
     }
@@ -55,7 +56,7 @@ public class PartitionDiscoveryTests
         var parquetFile = Path.Combine(_testDirectory, "data.parquet");
         File.WriteAllText(parquetFile, "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Has.Count.EqualTo(1));
         Assert.That(partitions[0].Path, Is.EqualTo(_testDirectory));
@@ -73,7 +74,7 @@ public class PartitionDiscoveryTests
         Directory.CreateDirectory(partition2);
         File.WriteAllText(Path.Combine(partition2, "data.parquet"), "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Has.Count.EqualTo(2));
 
@@ -93,7 +94,7 @@ public class PartitionDiscoveryTests
         Directory.CreateDirectory(partition);
         File.WriteAllText(Path.Combine(partition, "data.parquet"), "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Has.Count.EqualTo(1));
         Assert.That(partitions[0].Values["year"], Is.EqualTo("2024"));
@@ -115,7 +116,7 @@ public class PartitionDiscoveryTests
         Directory.CreateDirectory(nonPartitioned);
         File.WriteAllText(Path.Combine(nonPartitioned, "old.parquet"), "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Has.Count.EqualTo(3));
         Assert.That(partitions.Any(p => p.Values.Count == 0 && p.Path == _testDirectory), Is.True);
@@ -132,7 +133,7 @@ public class PartitionDiscoveryTests
         File.WriteAllText(Path.Combine(partition, "file2.parquet"), "dummy");
         File.WriteAllText(Path.Combine(partition, "file3.parquet"), "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Has.Count.EqualTo(1));
         Assert.That(partitions[0].Values["year"], Is.EqualTo("2024"));
@@ -146,7 +147,7 @@ public class PartitionDiscoveryTests
         File.WriteAllText(Path.Combine(dir, "file.txt"), "dummy");
         File.WriteAllText(Path.Combine(dir, "file.csv"), "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Is.Empty);
     }
@@ -158,7 +159,7 @@ public class PartitionDiscoveryTests
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "data.parquet"), "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Has.Count.EqualTo(1));
         Assert.That(partitions[0].Values, Is.Empty);
@@ -172,7 +173,7 @@ public class PartitionDiscoveryTests
         File.WriteAllText(Path.Combine(dir, "file.PARQUET"), "dummy");
         File.WriteAllText(Path.Combine(dir, "file.Parquet"), "dummy");
 
-        var partitions = PartitionDiscovery.Discover(_testDirectory).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
 
         Assert.That(partitions, Has.Count.EqualTo(1));
     }
@@ -197,7 +198,7 @@ public class PartitionDiscoveryTests
             Directory.CreateDirectory(longPartitionPath);
             File.WriteAllText(Path.Combine(longPartitionPath, "data.parquet"), "dummy");
 
-            var partitions = PartitionDiscovery.Discover(tempDir).ToList();
+            var partitions = new FileSystemPartitionDiscovery(tempDir).DiscoverPartitions().ToList();
 
             Assert.That(partitions, Has.Count.EqualTo(1));
             Assert.That(partitions[0].Values, Contains.Key("event_date"));
@@ -248,7 +249,7 @@ public class PartitionDiscoveryTests
             Console.WriteLine($"Full path length: {filePath.Length} characters");
             Console.WriteLine($"Path: {filePath}");
 
-            var partitions = PartitionDiscovery.Discover(tempDir).ToList();
+            var partitions = new FileSystemPartitionDiscovery(tempDir).DiscoverPartitions().ToList();
 
             Assert.That(partitions, Has.Count.EqualTo(1));
             Assert.That(partitions[0].Values, Has.Count.EqualTo(8));
@@ -293,7 +294,7 @@ public class PartitionDiscoveryTests
 
             Console.WriteLine($"Test path length: {filePath.Length} characters (limit is typically 260)");
 
-            var partitions = PartitionDiscovery.Discover(tempDir).ToList();
+            var partitions = new FileSystemPartitionDiscovery(tempDir).DiscoverPartitions().ToList();
 
             Assert.That(partitions, Has.Count.EqualTo(1));
             Assert.That(partitions[0].Values, Contains.Key("partition"));

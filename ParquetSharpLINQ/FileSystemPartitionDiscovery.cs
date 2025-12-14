@@ -5,19 +5,21 @@ using ParquetSharpLINQ.Models;
 namespace ParquetSharpLINQ;
 
 /// <summary>
-/// Partition discovery that supports both Delta Lake and Hive-style partitioning.
+/// File system-based partition discovery strategy.
+/// Supports both Delta Lake and Hive-style partitioning.
 /// Automatically detects Delta tables by checking for _delta_log directory.
 /// </summary>
-public static class PartitionDiscovery
+public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
 {
+    private readonly string _rootPath;
+    private readonly Lazy<DeltaLogReader> _deltaLogReader;
+
     /// <summary>
-    /// Discover partitions under the root path.
-    /// If a _delta_log directory exists, reads from Delta transaction log.
-    /// Otherwise, scans directories for Parquet files (Hive-style).
+    /// Creates a new file system partition discovery strategy.
     /// </summary>
-    /// <param name="rootPath">Root directory to scan.</param>
-    /// <returns>Enumerable of discovered Partition objects.</returns>
-    public static IEnumerable<Partition> Discover(string rootPath)
+    /// <param name="rootPath">Root directory to scan for partitions</param>
+    /// <param name="cacheExpiration">Optional cache expiration duration for Delta log (default: 5 minutes)</param>
+    public FileSystemPartitionDiscovery(string rootPath, TimeSpan? cacheExpiration = null)
     {
         if (string.IsNullOrEmpty(rootPath))
         {
@@ -29,31 +31,44 @@ public static class PartitionDiscovery
             throw new DirectoryNotFoundException(rootPath);
         }
 
-        var deltaLogPath = Path.Combine(rootPath, "_delta_log");
-        if (Directory.Exists(deltaLogPath))
-        {
-            return DiscoverFromDeltaLog(rootPath);
-        }
-
-        return DiscoverFromFileSystem(rootPath);
+        _rootPath = rootPath;
+        _deltaLogReader = new Lazy<DeltaLogReader>(() => new DeltaLogReader(_rootPath, cacheExpiration));
     }
 
-    private static IEnumerable<Partition> DiscoverFromDeltaLog(string rootPath)
+    public IEnumerable<Partition> DiscoverPartitions()
     {
-        var deltaReader = new DeltaLogReader(rootPath);
-        var snapshot = deltaReader.GetLatestSnapshot();
+        var deltaLogPath = Path.Combine(_rootPath, "_delta_log");
+        if (Directory.Exists(deltaLogPath))
+        {
+            return DiscoverFromDeltaLog();
+        }
+
+        return DiscoverFromFileSystem();
+    }
+
+    public void ClearDeltaLogCache()
+    {
+        if (_deltaLogReader.IsValueCreated)
+        {
+            _deltaLogReader.Value.ClearCache();
+        }
+    }
+
+    private IEnumerable<Partition> DiscoverFromDeltaLog()
+    {
+        var snapshot = _deltaLogReader.Value.GetLatestSnapshot();
         var partitionGroups = new Dictionary<string, (Dictionary<string, string> Values, List<string> Files)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var addAction in snapshot.ActiveFiles)
         {
-            var fullPath = Path.Combine(rootPath, addAction.Path);
+            var fullPath = Path.Combine(_rootPath, addAction.Path);
             
             if (!File.Exists(fullPath))
             {
                 continue;
             }
 
-            var directory = Path.GetDirectoryName(fullPath) ?? rootPath;
+            var directory = Path.GetDirectoryName(fullPath) ?? _rootPath;
             var partitionKey = directory;
 
             if (!partitionGroups.ContainsKey(partitionKey))
@@ -76,10 +91,10 @@ public static class PartitionDiscovery
         });
     }
 
-    private static IEnumerable<Partition> DiscoverFromFileSystem(string rootPath)
+    private IEnumerable<Partition> DiscoverFromFileSystem()
     {
-        var directories = Directory.EnumerateDirectories(rootPath, "*", SearchOption.AllDirectories)
-            .Append(rootPath)
+        var directories = Directory.EnumerateDirectories(_rootPath, "*", SearchOption.AllDirectories)
+            .Append(_rootPath)
             .Distinct();
 
         foreach (var dir in directories)
@@ -93,7 +108,7 @@ public static class PartitionDiscovery
                 continue;
             }
 
-            var relative = Path.GetRelativePath(rootPath, dir)
+            var relative = Path.GetRelativePath(_rootPath, dir)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
             var values = HivePartitionParser.ParsePartitionValues(relative);

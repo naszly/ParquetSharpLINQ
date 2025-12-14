@@ -55,7 +55,7 @@ public class PartitionOnlyQueryTests
             });
 
             // Act - Query only partition column
-            using var table = new ParquetTable<EntityWithPartition>(testPath, mockReader);
+            using var table = new ParquetTable<EntityWithPartition>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var results = table.Select(e => e.EventSource).Distinct().ToList();
 
             // Assert - Should return partition values WITHOUT reading any Parquet files
@@ -109,7 +109,7 @@ public class PartitionOnlyQueryTests
             });
 
             // Act - Query partition column AND regular column
-            using var table = new ParquetTable<EntityWithPartition>(testPath, mockReader);
+            using var table = new ParquetTable<EntityWithPartition>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var results = table.Select(e => new { e.EventSource, e.Id }).ToList();
 
             // Assert - MUST read Parquet files when querying non-partition columns
@@ -151,7 +151,7 @@ public class PartitionOnlyQueryTests
             });
 
             // Act - Query multiple partition columns
-            using var table = new ParquetTable<EntityWithMultiplePartitions>(testPath, mockReader);
+            using var table = new ParquetTable<EntityWithMultiplePartitions>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var results = table.Select(e => new { e.EventSource, e.Region }).ToList();
 
             // Assert

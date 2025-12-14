@@ -5,11 +5,11 @@ namespace ParquetSharpLINQ;
 
 internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
 {
-    private readonly ParquetTable<T> _table;
+    private readonly ParquetEnumerationStrategy<T> _enumerationStrategy;
 
-    internal ParquetQueryProvider(ParquetTable<T> table)
+    internal ParquetQueryProvider(ParquetEnumerationStrategy<T> enumerationStrategy)
     {
-        _table = table ?? throw new ArgumentNullException(nameof(table));
+        _enumerationStrategy = enumerationStrategy ?? throw new ArgumentNullException(nameof(enumerationStrategy));
     }
 
     public IQueryable CreateQuery(Expression expression)
@@ -40,13 +40,13 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
         // Analyze the query to extract optimization hints
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        // Fallback to synchronous execution for local files
-        var sourceQueryable = _table.AsEnumerable(
+        // Execute query using enumeration strategy
+        var sourceQueryable = _enumerationStrategy.Enumerate(
             analysis.PartitionFilters.Count > 0 ? analysis.PartitionFilters : null,
             analysis.RequestedColumns
         ).AsQueryable();
 
-        var rewritten = ParquetExpressionReplacer<T>.Replace(expression, _table, sourceQueryable);
+        var rewritten = ParquetExpressionReplacer<T>.Replace(expression, sourceQueryable);
         return sourceQueryable.Provider.Execute<TResult>(rewritten);
     }
 
@@ -105,26 +105,24 @@ internal sealed class ParquetQueryable<TElement> : IOrderedQueryable<TElement>
 internal sealed class ParquetExpressionReplacer<TRoot> : ExpressionVisitor where TRoot : new()
 {
     private readonly IQueryable _replacement;
-    private readonly object _target;
 
-    private ParquetExpressionReplacer(object target, IQueryable replacement)
+    private ParquetExpressionReplacer(IQueryable replacement)
     {
-        _target = target;
         _replacement = replacement;
     }
 
-    public static Expression Replace(Expression expression, object target, IQueryable replacement)
+    public static Expression Replace(Expression expression, IQueryable replacement)
     {
-        ArgumentNullException.ThrowIfNull(expression);
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(replacement);
-
-        return new ParquetExpressionReplacer<TRoot>(target, replacement).Visit(expression);
+        return new ParquetExpressionReplacer<TRoot>(replacement).Visit(expression);
     }
 
     protected override Expression VisitConstant(ConstantExpression node)
     {
-        if (node.Value == _target) return Expression.Constant(_replacement, _replacement.GetType());
+        // Replace any ParquetTable<TRoot> constant with the replacement queryable
+        if (node.Value is ParquetTable<TRoot>)
+        {
+            return Expression.Constant(_replacement, _replacement.GetType());
+        }
 
         return base.VisitConstant(node);
     }

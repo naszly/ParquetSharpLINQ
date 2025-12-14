@@ -38,7 +38,7 @@ public class IntegrationTests
     [Test]
     public void Integration_FullTableScan_ReturnsAllRecords()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
         var expectedCount = Years * MonthsPerYear * Regions * RecordsPerPartition;
 
         var results = table.ToList();
@@ -51,7 +51,7 @@ public class IntegrationTests
     [Test]
     public void Integration_PartitionPruning_ByYear_OnlyReadsMatchingPartitions()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
         var expectedCount = MonthsPerYear * Regions * RecordsPerPartition;
 
         var results = table.Where(s => s.Year == 2024).ToList();
@@ -63,7 +63,7 @@ public class IntegrationTests
     [Test]
     public void Integration_PartitionPruning_ByRegion_OnlyReadsMatchingPartitions()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
         var expectedCount = Years * MonthsPerYear * RecordsPerPartition;
 
         var results = table.Where(s => s.Region == "eu-west").ToList();
@@ -75,7 +75,7 @@ public class IntegrationTests
     [Test]
     public void Integration_PartitionPruning_MultipleFilters_OnlyReadsSinglePartition()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var expectedCount = RecordsPerPartition;
 
@@ -90,7 +90,7 @@ public class IntegrationTests
     [Test]
     public void Integration_CountWithPredicate_ReturnCorrectCount()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
         var expectedCount = MonthsPerYear * Regions * RecordsPerPartition;
 
         var count = table.Count(s => s.Year == 2024);
@@ -101,7 +101,7 @@ public class IntegrationTests
     [Test]
     public void Integration_AnyWithPredicate_ReturnsTrue()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var hasData = table.Any(s => s.Year == 2024 && s.Region == "eu-west");
 
@@ -111,7 +111,7 @@ public class IntegrationTests
     [Test]
     public void Integration_FirstOrDefaultWithPredicate_ReturnsRecord()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var record = table.FirstOrDefault(s => s.Year == 2024 && s.Month == 2);
 
@@ -123,7 +123,7 @@ public class IntegrationTests
     [Test]
     public void Integration_ColumnProjection_OnlyReadsRequestedColumns()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var results = table
             .Where(s => s.Year == 2024)
@@ -140,7 +140,7 @@ public class IntegrationTests
     [Test]
     public void Integration_ComplexQuery_CombinesMultipleOperations()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var results = table
             .Where(s => s.Year == 2024 && s.Region == "us-east")
@@ -159,7 +159,7 @@ public class IntegrationTests
     [Test]
     public void Integration_Aggregations_CalculateCorrectly()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var allRecords = table.Where(s => s.Year == 2024 && s.Month == 1).ToList();
         var sum = allRecords.Sum(s => s.TotalAmount);
@@ -177,7 +177,7 @@ public class IntegrationTests
     [Test]
     public void Integration_MultipleQueries_OnSameTable_WorkIndependently()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var count2023 = table.Count(s => s.Year == 2023);
         var count2024 = table.Count(s => s.Year == 2024);
@@ -193,7 +193,7 @@ public class IntegrationTests
     [Test]
     public void Integration_PartitionValues_AreCorrectlyEnriched()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var records = table
             .Where(s => s.Year == 2023 && s.Month == 3 && s.Region == "eu-west")
@@ -213,7 +213,7 @@ public class IntegrationTests
     [Test]
     public void Integration_NoMatchingPartitions_ReturnsEmpty()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var results = table.Where(s => s.Year == 2025).ToList();
 
@@ -223,7 +223,7 @@ public class IntegrationTests
     [Test]
     public void Integration_PartitionMatching_NormalizesToLowercase_CrossPlatform()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
         var expectedCount = Years * MonthsPerYear * RecordsPerPartition;
 
         var lowerCaseQuery = table.Where(s => s.Region == "us-east").ToList();
@@ -237,7 +237,7 @@ public class IntegrationTests
     [Test]
     public void Integration_CaseInsensitiveMatching_UsingStringComparison()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
         var expectedCount = Years * MonthsPerYear * RecordsPerPartition;
 
         var upperCaseQuery = table
@@ -276,7 +276,7 @@ public class IntegrationTests
                 1
             );
 
-            using var table = new ParquetTable<SalesRecord>(specialPath);
+            using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(specialPath);
 
             var expectedCount = recordsPerPartition * Regions;
             var count = table.Count(s => s.Month == 1);
@@ -292,7 +292,7 @@ public class IntegrationTests
     [Test]
     public void Integration_LargeResultSet_HandlesMemoryEfficiently()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
 
         var count = 0;
         foreach (var record in table)
@@ -308,7 +308,7 @@ public class IntegrationTests
     [Test]
     public void Integration_PartitionDiscovery_FindsAllPartitions()
     {
-        var partitions = PartitionDiscovery.Discover(_testDataPath).ToList();
+        var partitions = new FileSystemPartitionDiscovery(_testDataPath).DiscoverPartitions().ToList();
 
         var expectedPartitionCount = Years * MonthsPerYear * Regions;
         Assert.That(partitions, Has.Count.EqualTo(expectedPartitionCount));
@@ -327,7 +327,7 @@ public class IntegrationTests
     [Test]
     public void Integration_PredicateOnNonPartitionColumn_ReadsAllRequestedColumns()
     {
-        using var table = new ParquetTable<SalesRecord>(_testDataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_testDataPath);
         var results = table
             .Where(s => s.TotalAmount > 1000)
             .Where(s => s.ProductName == "Laptop")

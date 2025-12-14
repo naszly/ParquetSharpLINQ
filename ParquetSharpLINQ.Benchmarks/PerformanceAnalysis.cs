@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ParquetSharpLINQ;
 
 namespace ParquetSharpLINQ.Benchmarks;
 
@@ -68,7 +69,7 @@ public static class PerformanceAnalysis
     {
         if (Directory.Exists(dataPath))
         {
-            var partitionCount = PartitionDiscovery.Discover(dataPath).Count();
+            var partitionCount = new FileSystemPartitionDiscovery(dataPath).DiscoverPartitions().Count();
             Console.WriteLine($"  Using existing test data: {dataPath}");
             Console.WriteLine($"  Discovered partitions: {partitionCount}");
             return;
@@ -82,7 +83,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzePartitionPruning(string dataPath)
     {
-        using var table = new ParquetTable<SalesRecord>(dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(dataPath);
 
         // Baseline: Full table scan
         var (fullCount, fullTime) = MeasureQuery(() => table.Count());
@@ -130,7 +131,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzeColumnProjection(string dataPath)
     {
-        using var table = new ParquetTable<SalesRecord>(dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(dataPath);
 
         // Full columns (limited to 1000 records for fair comparison)
         var (fullCount, fullTime) = MeasureQuery(() => table.Take(1000).Count());
@@ -158,7 +159,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzeCombinedOptimizations(string dataPath)
     {
-        using var table = new ParquetTable<SalesRecord>(dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(dataPath);
 
         // Baseline: Full scan with all columns
         var (baselineCount, baselineTime) = MeasureQuery(() => table.Count());
@@ -192,7 +193,7 @@ public static class PerformanceAnalysis
 
     private static void AnalyzeRegionQueries(string dataPath)
     {
-        using var table = new ParquetTable<SalesRecord>(dataPath);
+        using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(dataPath);
 
         var regions = new[] { "us-east", "us-west", "eu-central", "eu-west", "ap-southeast" };
 

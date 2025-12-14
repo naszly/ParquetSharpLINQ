@@ -108,7 +108,7 @@ public class QueryOptimizationTests
     [Test]
     public void PartitionPruning_WithYearFilter_OnlyReadsMatchingPartitions()
     {
-        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(_testPath), _mockReader);
         var callCount = 0;
 
         _mockReader.When(x => x.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()))
@@ -124,7 +124,7 @@ public class QueryOptimizationTests
     [Test]
     public void PartitionPruning_WithMultipleFilters_OnlyReadsMatchingPartition()
     {
-        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(_testPath), _mockReader);
         var callCount = 0;
 
         _mockReader.When(x => x.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()))
@@ -141,7 +141,7 @@ public class QueryOptimizationTests
     [Test]
     public void PartitionPruning_WithNoFilters_ReadsAllPartitions()
     {
-        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(_testPath), _mockReader);
         var callCount = 0;
 
         _mockReader.When(x => x.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()))
@@ -156,7 +156,7 @@ public class QueryOptimizationTests
     [Test]
     public void ColumnProjection_WithSelectProjection_OnlyReadsRequestedColumns()
     {
-        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(_testPath), _mockReader);
         IEnumerable<string>? requestedColumns = null;
 
         _mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>())
@@ -186,7 +186,7 @@ public class QueryOptimizationTests
     [Test]
     public void CombinedOptimization_PartitionPruningAndColumnProjection()
     {
-        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(_testPath), _mockReader);
         var callCount = 0;
         IEnumerable<string>? requestedColumns = null;
 
@@ -219,7 +219,7 @@ public class QueryOptimizationTests
     [Test]
     public void PartitionValues_AreCorrectlyEnriched()
     {
-        var table = new ParquetTable<TestEntity>(_testPath, _mockReader);
+        var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(_testPath), _mockReader);
 
         var results = table.Where(e => e.Year == 2024 && e.Region == "eu").ToList();
 
@@ -263,7 +263,7 @@ public class QueryOptimizationTests
                         [1L, "Test", 100m, 10, true, new DateTime(2024, 1, 1)])
                 });
 
-            var table = new ParquetTable<TestEntity>(testPath, mockReader);
+            var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var callCount = 0;
 
             mockReader.When(x => x.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()))
@@ -311,7 +311,7 @@ public class QueryOptimizationTests
                     new(["id", "name"], [1L, "Test"])
                 });
 
-            var table = new ParquetTable<TestEntityWithDateTimePartition>(testPath, mockReader);
+            var table = new ParquetTable<TestEntityWithDateTimePartition>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var callCount = 0;
 
             mockReader.When(x => x.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()))
@@ -359,7 +359,7 @@ public class QueryOptimizationTests
                     new(["id", "name"], [1L, "Test"])
                 });
 
-            var table = new ParquetTable<TestEntityWithDateOnlyPartition>(testPath, mockReader);
+            var table = new ParquetTable<TestEntityWithDateOnlyPartition>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var callCount = 0;
 
             mockReader.When(x => x.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()))

@@ -5,35 +5,49 @@ using ParquetSharpLINQ.Models;
 namespace ParquetSharpLINQ.Azure;
 
 /// <summary>
-/// Partition discovery for Azure Blob Storage that supports both Delta Lake and Hive-style partitioning.
+/// Azure Blob Storage-based partition discovery strategy.
+/// Supports both Delta Lake and Hive-style partitioning.
 /// Automatically detects Delta tables by checking for _delta_log/ prefix.
 /// </summary>
-public static class AzurePartitionDiscovery
+public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
 {
+    private readonly BlobContainerClient _containerClient;
+    private readonly string _blobPrefix;
+    private readonly Lazy<AzureDeltaLogReader> _deltaLogReader;
+
     /// <summary>
-    /// Discovers partitions from Azure Blob Storage container.
-    /// If _delta_log/ blobs exist, reads from Delta transaction log.
-    /// Otherwise, scans blobs for Parquet files (Hive-style).
+    /// Creates a new Azure Blob Storage partition discovery strategy.
     /// </summary>
     /// <param name="containerClient">Azure Blob Container client</param>
-    /// <param name="deltaLogReader">Reusable Delta log reader for caching</param>
-    /// <param name="blobPrefix">Optional blob prefix to limit discovery to a subfolder</param>
-    /// <returns>Enumerable of discovered partitions</returns>
-    public static IEnumerable<Partition> Discover(
+    /// <param name="blobPrefix">Optional blob prefix/subfolder path (e.g., "data/sales/" or empty for root)</param>
+    /// <param name="cacheExpiration">Optional cache expiration duration for Delta log (default: 5 minutes)</param>
+    public AzureBlobPartitionDiscovery(
         BlobContainerClient containerClient,
-        Lazy<AzureDeltaLogReader> deltaLogReader,
-        string blobPrefix = "")
+        string blobPrefix = "",
+        TimeSpan? cacheExpiration = null)
     {
-        ArgumentNullException.ThrowIfNull(containerClient);
+        _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
+        _blobPrefix = NormalizePrefix(blobPrefix);
+        _deltaLogReader = new Lazy<AzureDeltaLogReader>(() => 
+            new AzureDeltaLogReader(_containerClient, _blobPrefix, cacheExpiration));
+    }
 
-        blobPrefix = NormalizePrefix(blobPrefix);
-
-        if (IsDeltaTable(containerClient, blobPrefix))
+    public IEnumerable<Partition> DiscoverPartitions()
+    {
+        if (IsDeltaTable())
         {
-            return DiscoverFromDeltaLog(blobPrefix, deltaLogReader.Value);
+            return DiscoverFromDeltaLog();
         }
 
-        return DiscoverFromBlobs(containerClient, blobPrefix);
+        return DiscoverFromBlobs();
+    }
+
+    public void ClearDeltaLogCache()
+    {
+        if (_deltaLogReader.IsValueCreated)
+        {
+            _deltaLogReader.Value.ClearCache();
+        }
     }
 
     /// <summary>
@@ -61,29 +75,29 @@ public static class AzurePartitionDiscovery
         return prefix;
     }
 
-    private static bool IsDeltaTable(BlobContainerClient containerClient, string blobPrefix)
+    private bool IsDeltaTable()
     {
-        var deltaLogPrefix = blobPrefix + "_delta_log/";
-        var deltaLogBlobs = containerClient.GetBlobs(prefix: deltaLogPrefix);
+        var deltaLogPrefix = _blobPrefix + "_delta_log/";
+        var deltaLogBlobs = _containerClient.GetBlobs(prefix: deltaLogPrefix);
         return deltaLogBlobs.Any();
     }
 
-    private static IEnumerable<Partition> DiscoverFromDeltaLog(string blobPrefix, AzureDeltaLogReader deltaLogReader)
+    private IEnumerable<Partition> DiscoverFromDeltaLog()
     {
-        var snapshot = deltaLogReader.GetLatestSnapshot();
+        var snapshot = _deltaLogReader.Value.GetLatestSnapshot();
         var partitionGroups = new Dictionary<string, (Dictionary<string, string> Values, List<string> Files)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var addAction in snapshot.ActiveFiles)
         {
-            var fullFilePath = string.IsNullOrEmpty(blobPrefix) 
+            var fullFilePath = string.IsNullOrEmpty(_blobPrefix) 
                 ? addAction.Path 
-                : blobPrefix + addAction.Path;
+                : _blobPrefix + addAction.Path;
             
             var directory = GetDirectory(fullFilePath);
 
             if (string.IsNullOrEmpty(directory))
             {
-                directory = blobPrefix.TrimEnd('/');
+                directory = _blobPrefix.TrimEnd('/');
             }
 
             if (!partitionGroups.ContainsKey(directory))
@@ -106,9 +120,9 @@ public static class AzurePartitionDiscovery
         });
     }
 
-    private static IEnumerable<Partition> DiscoverFromBlobs(BlobContainerClient containerClient, string blobPrefix)
+    private IEnumerable<Partition> DiscoverFromBlobs()
     {
-        var blobs = containerClient.GetBlobs(prefix: blobPrefix);
+        var blobs = _containerClient.GetBlobs(prefix: _blobPrefix);
         var partitionPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var files = new List<string>();
 
@@ -131,9 +145,9 @@ public static class AzurePartitionDiscovery
         foreach (var path in partitionPaths.OrderBy(p => p))
         {
             var relativePath = path;
-            if (!string.IsNullOrEmpty(blobPrefix) && relativePath.StartsWith(blobPrefix, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(_blobPrefix) && relativePath.StartsWith(_blobPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                relativePath = relativePath.Substring(blobPrefix.Length);
+                relativePath = relativePath.Substring(_blobPrefix.Length);
             }
             
             var filesArray = files

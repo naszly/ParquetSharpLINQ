@@ -1,5 +1,3 @@
-using ParquetSharpLINQ.Attributes;
-
 namespace ParquetSharpLINQ.Tests.Integration;
 
 [TestFixture]
@@ -31,7 +29,7 @@ public class DeltaLakeIntegrationTests : DeltaLakeIntegrationTestsBase
             Assert.Inconclusive($"Delta table '{tableName}' not found. Generate test data first.");
         }
 
-        return new ParquetTable<T>(tablePath);
+        return ParquetTable<T>.Factory.FromFileSystem(tablePath);
     }
 
     [Test]

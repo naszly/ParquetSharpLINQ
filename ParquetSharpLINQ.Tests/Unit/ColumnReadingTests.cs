@@ -49,7 +49,7 @@ public class ColumnReadingTests
             });
 
             // Act
-            using var table = new ParquetTable<PartialEntity>(testPath, mockReader);
+            using var table = new ParquetTable<PartialEntity>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var results = table.ToList();
 
             // Assert - Verify only the 3 mapped columns were requested, not all 5
@@ -107,7 +107,7 @@ public class ColumnReadingTests
             });
 
             // Act - Use SELECT to read only 2 of 3 columns
-            using var table = new ParquetTable<PartialEntity>(testPath, mockReader);
+            using var table = new ParquetTable<PartialEntity>(new FileSystemPartitionDiscovery(testPath), mockReader);
             var results = table
                 .Select(e => new { e.Id, e.Name })
                 .ToList();
