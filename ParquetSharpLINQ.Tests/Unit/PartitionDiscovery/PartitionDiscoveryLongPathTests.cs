@@ -1,183 +1,13 @@
 using ParquetSharp;
 using ParquetSharpLINQ.ParquetSharp;
 
-namespace ParquetSharpLINQ.Tests.Unit;
+namespace ParquetSharpLINQ.Tests.Unit.PartitionDiscovery;
 
 [TestFixture]
 [Category("Unit")]
-public class PartitionDiscoveryTests
+[Category("PartitionDiscovery")]
+public class PartitionDiscoveryLongPathTests
 {
-    [SetUp]
-    public void Setup()
-    {
-        _testDirectory = Path.Combine(Path.GetTempPath(), $"ParquetTest_{Guid.NewGuid()}");
-        Directory.CreateDirectory(_testDirectory);
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_testDirectory)) Directory.Delete(_testDirectory, true);
-    }
-
-    private string _testDirectory = null!;
-
-    [Test]
-    public void Discover_WithNullPath_ThrowsArgumentException()
-    {
-        Assert.Throws<ArgumentException>(() => new FileSystemPartitionDiscovery(null!));
-    }
-
-    [Test]
-    public void Discover_WithEmptyPath_ThrowsArgumentException()
-    {
-        Assert.Throws<ArgumentException>(() => new FileSystemPartitionDiscovery(""));
-    }
-
-    [Test]
-    public void Discover_WithNonExistentDirectory_ThrowsDirectoryNotFoundException()
-    {
-        Assert.Throws<DirectoryNotFoundException>(() =>
-            new FileSystemPartitionDiscovery("/nonexistent/path"));
-    }
-
-    [Test]
-    public void Discover_WithNoParquetFiles_ReturnsEmpty()
-    {
-        var discovery = new FileSystemPartitionDiscovery(_testDirectory);
-        var partitions = discovery.DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Is.Empty);
-    }
-
-    [Test]
-    public void Discover_WithRootLevelParquetFile_ReturnsRootPartition()
-    {
-        var parquetFile = Path.Combine(_testDirectory, "data.parquet");
-        File.WriteAllText(parquetFile, "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Has.Count.EqualTo(1));
-        Assert.That(partitions[0].Path, Is.EqualTo(_testDirectory));
-        Assert.That(partitions[0].Values, Is.Empty);
-    }
-
-    [Test]
-    public void Discover_WithHivePartitions_ParsesPartitionValues()
-    {
-        var partition1 = Path.Combine(_testDirectory, "year=2023", "region=US");
-        Directory.CreateDirectory(partition1);
-        File.WriteAllText(Path.Combine(partition1, "data.parquet"), "dummy");
-
-        var partition2 = Path.Combine(_testDirectory, "year=2024", "region=EU");
-        Directory.CreateDirectory(partition2);
-        File.WriteAllText(Path.Combine(partition2, "data.parquet"), "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Has.Count.EqualTo(2));
-
-        var usPartition = partitions.First(p => p.Values.Values.Contains("US"));
-        Assert.That(usPartition.Values["year"], Is.EqualTo("2023"));
-        Assert.That(usPartition.Values["region"], Is.EqualTo("US"));
-
-        var euPartition = partitions.First(p => p.Values.Values.Contains("EU"));
-        Assert.That(euPartition.Values["year"], Is.EqualTo("2024"));
-        Assert.That(euPartition.Values["region"], Is.EqualTo("EU"));
-    }
-
-    [Test]
-    public void Discover_WithNestedPartitions_ParsesAllLevels()
-    {
-        var partition = Path.Combine(_testDirectory, "year=2024", "month=01", "day=15");
-        Directory.CreateDirectory(partition);
-        File.WriteAllText(Path.Combine(partition, "data.parquet"), "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Has.Count.EqualTo(1));
-        Assert.That(partitions[0].Values["year"], Is.EqualTo("2024"));
-        Assert.That(partitions[0].Values["month"], Is.EqualTo("01"));
-        Assert.That(partitions[0].Values["day"], Is.EqualTo("15"));
-    }
-
-    [Test]
-    public void Discover_WithMixedPartitionedAndNonPartitionedDirectories_HandlesCorrectly()
-    {
-        var rootFile = Path.Combine(_testDirectory, "root.parquet");
-        File.WriteAllText(rootFile, "dummy");
-
-        var partitioned = Path.Combine(_testDirectory, "year=2024");
-        Directory.CreateDirectory(partitioned);
-        File.WriteAllText(Path.Combine(partitioned, "data.parquet"), "dummy");
-
-        var nonPartitioned = Path.Combine(_testDirectory, "archive");
-        Directory.CreateDirectory(nonPartitioned);
-        File.WriteAllText(Path.Combine(nonPartitioned, "old.parquet"), "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Has.Count.EqualTo(3));
-        Assert.That(partitions.Any(p => p.Values.Count == 0 && p.Path == _testDirectory), Is.True);
-        Assert.That(partitions.Any(p => p.Values.ContainsKey("year")), Is.True);
-        Assert.That(partitions.Any(p => p.Path.EndsWith("archive")), Is.True);
-    }
-
-    [Test]
-    public void Discover_WithMultipleFilesInPartition_ReturnsOnePartition()
-    {
-        var partition = Path.Combine(_testDirectory, "year=2024");
-        Directory.CreateDirectory(partition);
-        File.WriteAllText(Path.Combine(partition, "file1.parquet"), "dummy");
-        File.WriteAllText(Path.Combine(partition, "file2.parquet"), "dummy");
-        File.WriteAllText(Path.Combine(partition, "file3.parquet"), "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Has.Count.EqualTo(1));
-        Assert.That(partitions[0].Values["year"], Is.EqualTo("2024"));
-    }
-
-    [Test]
-    public void Discover_IgnoresNonParquetFiles()
-    {
-        var dir = Path.Combine(_testDirectory, "year=2024");
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "file.txt"), "dummy");
-        File.WriteAllText(Path.Combine(dir, "file.csv"), "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Is.Empty);
-    }
-
-    [Test]
-    public void Discover_WithInvalidPartitionFormat_TreatsAsNonPartitioned()
-    {
-        var dir = Path.Combine(_testDirectory, "data", "backup");
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "data.parquet"), "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Has.Count.EqualTo(1));
-        Assert.That(partitions[0].Values, Is.Empty);
-    }
-
-    [Test]
-    public void Discover_WithCaseInsensitiveParquetExtension_FindsFiles()
-    {
-        var dir = Path.Combine(_testDirectory, "year=2024");
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "file.PARQUET"), "dummy");
-        File.WriteAllText(Path.Combine(dir, "file.Parquet"), "dummy");
-
-        var partitions = new FileSystemPartitionDiscovery(_testDirectory).DiscoverPartitions().ToList();
-
-        Assert.That(partitions, Has.Count.EqualTo(1));
-    }
-
     [Test]
     public void Discover_WithLongPartitionPaths_HandlesCorrectly()
     {
@@ -282,10 +112,10 @@ public class PartitionDiscoveryTests
         {
             Directory.CreateDirectory(tempDir);
 
-            var basePathLength = tempDir.Length + "/data.parquet".Length + 1; // +1 for separator
-            var availableLength = 250 - basePathLength; // Leave some margin below 260
+            var basePathLength = tempDir.Length + "/data.parquet".Length + 1;
+            var availableLength = 250 - basePathLength;
 
-            var longValue = new string('x', Math.Max(0, availableLength / 2 - 20)); // Split between key and value
+            var longValue = new string('x', Math.Max(0, availableLength / 2 - 20));
             var partitionPath = Path.Combine(tempDir, $"partition={longValue}");
 
             Directory.CreateDirectory(partitionPath);
@@ -444,3 +274,4 @@ public class PartitionDiscoveryTests
         }
     }
 }
+

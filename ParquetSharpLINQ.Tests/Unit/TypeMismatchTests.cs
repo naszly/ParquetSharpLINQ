@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
 
