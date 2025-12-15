@@ -38,7 +38,7 @@ jobs:
         sleep 5
     
     - name: Generate Delta Lake test data
-      run: python3 ParquetSharpLINQ.Tests/Integration/generate_delta_test_data.py
+      run: python3 ParquetSharpLINQ.Tests/Integration/Delta/generate_delta_test_data.py
     
     - name: Restore dependencies
       run: dotnet restore
