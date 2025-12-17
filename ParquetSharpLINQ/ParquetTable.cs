@@ -3,11 +3,16 @@ using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
 using System.Collections;
+using System.Collections.Immutable;
 using System.Linq.Expressions;
 using System.Reflection;
 using ParquetSharpLINQ.Query;
 
 namespace ParquetSharpLINQ;
+
+#if !NET9_0_OR_GREATER
+using Lock = object;
+#endif
 
 public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T : new()
 {
@@ -15,6 +20,11 @@ public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T 
     private readonly IPartitionDiscoveryStrategy _discoveryStrategy;
     private readonly ParquetEnumerationStrategy<T> _enumerationStrategy;
     private readonly SemaphoreSlim _prefetchLock = new(1, 1);
+    
+    private ImmutableArray<Partition> _discoveredPartitions = [];
+    private DateTime _lastPartitionDiscoveryTime = DateTime.MinValue;
+    private readonly TimeSpan _partitionCacheDuration = TimeSpan.FromMinutes(5);
+    private readonly Lock _partitionDiscoveryLock = new();
 
     /// <summary>
     /// Gets the factory for creating ParquetTable instances.
@@ -29,14 +39,20 @@ public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T 
     /// <param name="discoveryStrategy">Partition discovery strategy</param>
     /// <param name="reader">Parquet reader implementation</param>
     /// <param name="mapper">Optional custom mapper (for DI/testing). If null, uses source-generated mapper.</param>
+    /// <param name="partitionCacheDuration">Optional duration to cache partition discovery results (default: 5 minutes)</param>
     public ParquetTable(
         IPartitionDiscoveryStrategy discoveryStrategy,
         IParquetReader reader,
-        IParquetMapper<T>? mapper = null)
+        IParquetMapper<T>? mapper = null,
+        TimeSpan? partitionCacheDuration = null)
     {
         _discoveryStrategy = discoveryStrategy ?? throw new ArgumentNullException(nameof(discoveryStrategy));
         _reader = reader ?? throw new ArgumentNullException(nameof(reader));
         _enumerationStrategy = new ParquetEnumerationStrategy<T>(_discoveryStrategy, _reader, mapper ?? ResolveMapper());
+        if (partitionCacheDuration.HasValue)
+        {
+            _partitionCacheDuration = partitionCacheDuration.Value;
+        }
         Provider = new ParquetQueryProvider<T>(_enumerationStrategy);
         Expression = Expression.Constant(this);
     }
@@ -88,21 +104,36 @@ public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T 
     }
 
     /// <summary>
-    /// Discovers all partitions in the table.
-    /// Useful for inspecting partition structure and debugging.
+    /// Discovers and returns all partitions for the table using the configured discovery strategy.
+    /// Results are cached and the method is thread-safe.
     /// </summary>
     public IEnumerable<Partition> DiscoverPartitions()
     {
-        return _discoveryStrategy.DiscoverPartitions();
-    }
+        lock (_partitionDiscoveryLock)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastPartitionDiscoveryTime <= _partitionCacheDuration)
+            {
+                return _discoveredPartitions;
+            }
 
+            _discoveredPartitions = _discoveryStrategy.DiscoverPartitions().ToImmutableArray();
+            _lastPartitionDiscoveryTime = now;
+
+            return _discoveredPartitions;
+        }
+    }
+    
     /// <summary>
-    /// Clears any cached Delta log data, forcing fresh reads on next query.
-    /// Only has an effect for Delta tables.
+    /// Clears the cached partition discovery results, forcing a fresh discovery on next access.
     /// </summary>
-    public void ClearDeltaLogCache()
+    public void ClearPartitionCache()
     {
-        _discoveryStrategy.ClearDeltaLogCache();
+        lock (_partitionDiscoveryLock)
+        {
+            _discoveredPartitions = [];
+            _lastPartitionDiscoveryTime = DateTime.MinValue;
+        }
     }
 
     /// <summary>

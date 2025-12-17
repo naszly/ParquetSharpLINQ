@@ -16,7 +16,7 @@ public class ParquetTableFactory<T> where T : new()
     /// Supports both Hive-style partitioning and Delta Lake tables.
     /// </summary>
     /// <param name="rootPath">Root directory containing Parquet files</param>
-    /// <param name="cacheExpiration">Optional cache expiration for Delta log (default: 5 minutes)</param>
+    /// <param name="cacheExpiration">Optional cache expiration for partition discovery results (default: 5 minutes)</param>
     /// <param name="mapper">Optional custom mapper (for DI/testing). If null, uses source-generated mapper.</param>
     /// <param name="reader">Optional custom reader (for DI/testing). If null, uses ParquetSharpReader.</param>
     /// <returns>A new ParquetTable instance for querying local files</returns>
@@ -35,10 +35,9 @@ public class ParquetTableFactory<T> where T : new()
         
         var discoveryStrategy = new FileSystemPartitionDiscovery(
             rootPath, 
-            cacheExpiration,
             statisticsProvider);
 
-        return new ParquetTable<T>(discoveryStrategy, reader, mapper);
+        return new ParquetTable<T>(discoveryStrategy, reader, mapper, cacheExpiration);
     }
 }
 

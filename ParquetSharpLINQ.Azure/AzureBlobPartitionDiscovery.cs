@@ -23,20 +23,18 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
     /// </summary>
     /// <param name="containerClient">Azure Blob Container client</param>
     /// <param name="blobPrefix">Optional blob prefix/subfolder path (e.g., "data/sales/" or empty for root)</param>
-    /// <param name="cacheExpiration">Optional cache expiration duration for Delta log (default: 5 minutes)</param>
     /// <param name="statisticsProvider">Optional statistics provider for enriching file metadata with row-group statistics</param>
     /// <param name="statisticsParallelism">Max degree of parallelism for statistics enrichment (default: CPU count)</param>
     public AzureBlobPartitionDiscovery(
         BlobContainerClient containerClient,
         string blobPrefix = "",
-        TimeSpan? cacheExpiration = null,
         IParquetStatisticsProvider? statisticsProvider = null,
         int statisticsParallelism = 0)
     {
         _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
         _blobPrefix = NormalizePrefix(blobPrefix);
         _deltaLogReader = new Lazy<AzureDeltaLogReader>(() => 
-            new AzureDeltaLogReader(_containerClient, _blobPrefix, cacheExpiration));
+            new AzureDeltaLogReader(_containerClient, _blobPrefix));
         _statisticsEnricher = statisticsProvider != null 
             ? new PartitionStatisticsEnricher(statisticsProvider, statisticsParallelism)
             : null;
@@ -53,14 +51,6 @@ public class AzureBlobPartitionDiscovery : IPartitionDiscoveryStrategy
         }
 
         return partitions;
-    }
-
-    public void ClearDeltaLogCache()
-    {
-        if (_deltaLogReader.IsValueCreated)
-        {
-            _deltaLogReader.Value.ClearCache();
-        }
     }
 
     /// <summary>

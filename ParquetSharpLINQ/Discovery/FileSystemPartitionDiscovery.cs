@@ -20,12 +20,10 @@ public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
     /// Creates a new file system partition discovery strategy.
     /// </summary>
     /// <param name="rootPath">Root directory to scan for partitions</param>
-    /// <param name="cacheExpiration">Optional cache expiration duration for Delta log (default: 5 minutes)</param>
     /// <param name="statisticsProvider">Optional statistics provider for enriching file metadata with row-group statistics</param>
     /// <param name="statisticsParallelism">Max degree of parallelism for statistics enrichment (default: CPU count)</param>
     public FileSystemPartitionDiscovery(
         string rootPath, 
-        TimeSpan? cacheExpiration = null,
         IParquetStatisticsProvider? statisticsProvider = null,
         int statisticsParallelism = 0)
     {
@@ -40,7 +38,7 @@ public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
         }
 
         _rootPath = rootPath;
-        _deltaLogReader = new Lazy<DeltaLogReader>(() => new DeltaLogReader(_rootPath, cacheExpiration));
+        _deltaLogReader = new Lazy<DeltaLogReader>(() => new DeltaLogReader(_rootPath));
         _statisticsEnricher = statisticsProvider != null 
             ? new PartitionStatisticsEnricher(statisticsProvider, statisticsParallelism)
             : null;
@@ -60,14 +58,6 @@ public class FileSystemPartitionDiscovery : IPartitionDiscoveryStrategy
         }
 
         return partitions;
-    }
-
-    public void ClearDeltaLogCache()
-    {
-        if (_deltaLogReader.IsValueCreated)
-        {
-            _deltaLogReader.Value.ClearCache();
-        }
     }
 
     private IEnumerable<Partition> DiscoverFromDeltaLog()

@@ -27,7 +27,7 @@ public static class ParquetTableFactoryExtensions
         /// <param name="connectionString">Azure Storage connection string</param>
         /// <param name="containerName">Blob container name</param>
         /// <param name="blobPrefix">Optional blob prefix/subfolder path (e.g., "data/sales/" or empty for root)</param>
-        /// <param name="cacheExpiration">Optional cache expiration for Delta log (default: 5 minutes)</param>
+        /// <param name="cacheExpiration">Optional cache expiration for partition discovery results (default: 5 minutes)</param>
         /// <param name="maxCacheSizeBytes">Optional max cache size for blob downloads</param>
         /// <param name="mapper">Optional custom mapper (for DI/testing). If null, uses source-generated mapper.</param>
         /// <returns>A new ParquetTable instance for querying Azure Blob Storage</returns>
@@ -46,9 +46,9 @@ public static class ParquetTableFactoryExtensions
 
             var containerClient = CreateOptimizedContainerClient(connectionString, containerName);
         
-            var discoveryStrategy = new AzureBlobPartitionDiscovery(containerClient, blobPrefix, cacheExpiration);
+            var discoveryStrategy = new AzureBlobPartitionDiscovery(containerClient, blobPrefix);
             var reader = new AzureBlobParquetReader(containerClient, maxCacheSizeBytes);
-            return new ParquetTable<T>(discoveryStrategy, reader, mapper);
+            return new ParquetTable<T>(discoveryStrategy, reader, mapper, cacheExpiration);
         }
 
         /// <summary>
@@ -57,7 +57,7 @@ public static class ParquetTableFactoryExtensions
         /// </summary>
         /// <param name="containerClient">Existing blob container client</param>
         /// <param name="blobPrefix">Optional blob prefix/subfolder path (e.g., "data/sales/" or empty for root)</param>
-        /// <param name="cacheExpiration">Optional cache expiration for Delta log (default: 5 minutes)</param>
+        /// <param name="cacheExpiration">Optional cache expiration for partition discovery results (default: 5 minutes)</param>
         /// <param name="maxCacheSizeBytes">Optional max cache size for blob downloads</param>
         /// <param name="mapper">Optional custom mapper (for DI/testing). If null, uses source-generated mapper.</param>
         /// <param name="reader">Optional custom reader (for DI/testing). If null, uses AzureBlobParquetReader.</param>
@@ -79,10 +79,9 @@ public static class ParquetTableFactoryExtensions
             var discoveryStrategy = new AzureBlobPartitionDiscovery(
                 containerClient, 
                 blobPrefix, 
-                cacheExpiration,
                 statisticsProvider);
             reader ??= new AzureBlobParquetReader(containerClient, maxCacheSizeBytes);
-            return new ParquetTable<T>(discoveryStrategy, reader, mapper);
+            return new ParquetTable<T>(discoveryStrategy, reader, mapper, cacheExpiration);
         }
     }
 

@@ -14,11 +14,5 @@ public interface IPartitionDiscoveryStrategy
     /// </summary>
     /// <returns>Enumerable of discovered partitions with their files and metadata.</returns>
     IEnumerable<Partition> DiscoverPartitions();
-
-    /// <summary>
-    /// Clears any cached Delta log data, forcing fresh reads on next discovery.
-    /// Optional method - only relevant for Delta table implementations.
-    /// </summary>
-    void ClearDeltaLogCache();
 }
 
