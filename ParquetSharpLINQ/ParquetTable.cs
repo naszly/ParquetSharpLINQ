@@ -25,14 +25,18 @@ public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T 
     /// <param name="reader">Parquet reader implementation</param>
     /// <param name="mapper">Optional custom mapper (for DI/testing). If null, uses source-generated mapper.</param>
     /// <param name="partitionCacheDuration">Optional duration to cache partition discovery results (default: 5 minutes)</param>
+    /// <param name="degreeOfParallelism">Degree of parallelism for reading (default: 0 = non-parallel)</param>
     public ParquetTable(
         IPartitionDiscoveryStrategy discoveryStrategy,
         IParquetReader reader,
         IParquetMapper<T>? mapper = null,
-        TimeSpan? partitionCacheDuration = null)
+        TimeSpan? partitionCacheDuration = null,
+        int degreeOfParallelism = 0)
     {
         mapper ??= ResolveMapper();
-        _enumerationStrategy = new ParquetEnumerationStrategy<T>(discoveryStrategy, reader, mapper, partitionCacheDuration);
+        _enumerationStrategy = new ParquetEnumerationStrategy<T>(
+            discoveryStrategy, reader, mapper, partitionCacheDuration, degreeOfParallelism);
+        
         Provider = new ParquetQueryProvider<T>(_enumerationStrategy);
         Expression = Expression.Constant(this);
     }

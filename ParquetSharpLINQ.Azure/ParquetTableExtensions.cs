@@ -48,7 +48,7 @@ public static class ParquetTableFactoryExtensions
         
             var discoveryStrategy = new AzureBlobPartitionDiscovery(containerClient, blobPrefix);
             var reader = new AzureBlobParquetReader(containerClient, maxCacheSizeBytes);
-            return new ParquetTable<T>(discoveryStrategy, reader, mapper, cacheExpiration);
+            return new ParquetTable<T>(discoveryStrategy, reader, mapper, cacheExpiration, degreeOfParallelism: 8);
         }
 
         /// <summary>
