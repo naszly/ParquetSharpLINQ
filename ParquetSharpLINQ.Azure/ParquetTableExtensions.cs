@@ -70,7 +70,7 @@ public static class ParquetTableFactoryExtensions
             TimeSpan? cacheExpiration = null,
             long maxCacheSizeBytes = ParquetConfiguration.DefaultMaxCacheSizeBytes,
             IParquetMapper<T>? mapper = null,
-            IAsyncParquetReader? reader = null)
+            IParquetReader? reader = null)
         {
             ArgumentNullException.ThrowIfNull(containerClient);
         

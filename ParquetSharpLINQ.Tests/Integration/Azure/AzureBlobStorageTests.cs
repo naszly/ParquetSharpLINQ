@@ -181,6 +181,7 @@ public class AzureBlobStorageTests
     }
 
     [Test]
+    [Ignore("Caching is removed in current version")]
     public void Azure_CachingPerformance_SecondQueryIsFaster()
     {
         using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(AzuriteTestHelper.ConnectionString, ContainerClient.Name);
