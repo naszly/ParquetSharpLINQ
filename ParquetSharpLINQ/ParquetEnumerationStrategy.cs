@@ -7,60 +7,94 @@ using ParquetSharpLINQ.Query;
 
 namespace ParquetSharpLINQ;
 
+#if !NET9_0_OR_GREATER
+using Lock = object;
+#endif
+
 internal class ParquetEnumerationStrategy<T> where T : new()
 {
-    private readonly IPartitionDiscoveryStrategy _discoveryStrategy;
-    private readonly IParquetReader _reader;
-    private readonly IParquetMapper<T> _mapper;
+    private readonly IPartitionDiscoveryStrategy _partitionDiscoveryStrategy;
+    private readonly IParquetReader _parquetReader;
+    private readonly IParquetMapper<T> _parquetMapper;
+    
+    private ImmutableArray<Partition> _discoveredPartitions = [];
+    private DateTime _lastPartitionDiscoveryTime = DateTime.MinValue;
+    private readonly TimeSpan _partitionCacheDuration = TimeSpan.FromMinutes(5);
+    private readonly Lock _partitionDiscoveryLock = new();
 
     public ParquetEnumerationStrategy(
         IPartitionDiscoveryStrategy discoveryStrategy,
         IParquetReader reader,
-        IParquetMapper<T> mapper)
+        IParquetMapper<T> mapper,
+        TimeSpan? partitionCacheDuration = null)
     {
-        _discoveryStrategy = discoveryStrategy ?? throw new ArgumentNullException(nameof(discoveryStrategy));
-        _reader = reader ?? throw new ArgumentNullException(nameof(reader));
-        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _partitionDiscoveryStrategy = discoveryStrategy ?? throw new ArgumentNullException(nameof(discoveryStrategy));
+        _parquetReader = reader ?? throw new ArgumentNullException(nameof(reader));
+        _parquetMapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        
+        if (partitionCacheDuration.HasValue)
+        {
+            _partitionCacheDuration = partitionCacheDuration.Value;
+        }
     }
 
     public IEnumerable<T> Enumerate(
-        IReadOnlyDictionary<string, object?>? partitionFilters,
-        IReadOnlyCollection<string>? requestedColumns,
+        IReadOnlyDictionary<string, object?>? partitionFilters = null,
+        IReadOnlyCollection<string>? requestedColumns = null,
         IReadOnlyDictionary<string, RangeFilter>? rangeFilters = null)
     {
-        var partitions = DiscoverAndFilterPartitions(partitionFilters);
+        var partitions = DiscoverPartitions();
+        
+        if (partitionFilters is { Count: > 0 })
+        {
+            partitions = FilterPartitions(partitions, partitionFilters);
+        }
 
-        if (requestedColumns != null && requestedColumns.Count > 0 && 
-            PropertyColumnMapper<T>.AreAllColumnsPartitions(requestedColumns))
+        if (requestedColumns is { Count: > 0 } && PropertyColumnMapper<T>.AreAllColumnsPartitions(requestedColumns))
         {
             return EnumerateFromPartitionMetadataOnly(partitions);
         }
 
-        return EnumerateFromParquetFiles(partitions, requestedColumns, rangeFilters);
+        return EnumerateFromParquet(partitions, requestedColumns, rangeFilters);
+    }
+    
+    /// <summary>
+    /// Discovers and returns all partitions for the table using the configured discovery strategy.
+    /// Results are cached and the method is thread-safe.
+    /// </summary>
+    public IEnumerable<Partition> DiscoverPartitions()
+    {
+        lock (_partitionDiscoveryLock)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastPartitionDiscoveryTime <= _partitionCacheDuration)
+            {
+                return _discoveredPartitions;
+            }
+
+            _discoveredPartitions = _partitionDiscoveryStrategy.DiscoverPartitions().ToImmutableArray();
+            _lastPartitionDiscoveryTime = now;
+
+            return _discoveredPartitions;
+        }
     }
 
-    private IEnumerable<Partition> DiscoverAndFilterPartitions(IReadOnlyDictionary<string, object?>? partitionFilters)
+    private static IEnumerable<Partition> FilterPartitions(
+        IEnumerable<Partition> partitions,
+        IReadOnlyDictionary<string, object?> partitionFilters)
     {
-        var partitions = _discoveryStrategy.DiscoverPartitions();
-
-        if (partitionFilters != null && partitionFilters.Count > 0)
-        {
-            var mappedFilters = PropertyColumnMapper<T>.MapPropertyNamesToColumnNames(partitionFilters);
-            partitions = PartitionFilter.PrunePartitions(partitions, mappedFilters);
-        }
-
-        return partitions;
+        var mappedFilters = PropertyColumnMapper<T>.MapPropertyNamesToColumnNames(partitionFilters);
+        return PartitionFilter.PrunePartitions(partitions, mappedFilters);
     }
 
     private IEnumerable<T> EnumerateFromPartitionMetadataOnly(IEnumerable<Partition> partitions)
     {
         return partitions
             .Select(PartitionRowEnricher.CreateRowFromPartitionMetadata)
-            .Select(row => _mapper.Map(row));
+            .Select(row => _parquetMapper.Map(row));
     }
 
-
-    private IEnumerable<T> EnumerateFromParquetFiles(
+    private IEnumerable<T> EnumerateFromParquet(
         IEnumerable<Partition> partitions,
         IReadOnlyCollection<string>? requestedColumns,
         IReadOnlyDictionary<string, RangeFilter>? rangeFilters)
@@ -98,18 +132,18 @@ internal class ParquetEnumerationStrategy<T> where T : new()
         IReadOnlyCollection<string>? requestedColumns)
     {
         var availableColumnNames = GetAvailableColumnNames(file.Path);
-        var columnsToRead = ColumnResolver<T>.ResolveColumnsToRead(_mapper, availableColumnNames, requestedColumns);
+        var columnsToRead = ColumnResolver<T>.ResolveColumnsToRead(_parquetMapper, availableColumnNames, requestedColumns);
 
-        foreach (var row in _reader.ReadRows(file.Path, columnsToRead))
+        foreach (var row in _parquetReader.ReadRows(file.Path, columnsToRead))
         {
             var enrichedRow = PartitionRowEnricher.EnrichWithPartitionValues(row, partition.Values);
-            yield return _mapper.Map(enrichedRow);
+            yield return _parquetMapper.Map(enrichedRow);
         }
     }
 
     private IReadOnlyList<string> GetAvailableColumnNames(string filePath)
     {
-        return _reader.GetColumns(filePath)
+        return _parquetReader.GetColumns(filePath)
             .Select(column => column.Name)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToImmutableArray();
