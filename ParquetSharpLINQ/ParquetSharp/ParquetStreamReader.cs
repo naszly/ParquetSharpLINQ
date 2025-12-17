@@ -28,7 +28,7 @@ public static class ParquetStreamReader
         for (var i = 0; i < schema.NumColumns; i++)
         {
             var descriptor = schema.Column(i);
-            builder.Add(new Column(descriptor.LogicalType.GetType(), ParquetColumnMapper.GetColumnPath(descriptor)));
+            builder.Add(new Column(descriptor.LogicalType.GetType(), descriptor.Name));
         }
         
         return builder.ToImmutable();
@@ -49,14 +49,12 @@ public static class ParquetStreamReader
         var schema = reader.FileMetaData.Schema ??
                      throw new InvalidOperationException("Unable to read Parquet schema.");
 
-        var availableColumns = ParquetColumnMapper.BuildColumnMap(schema);
-        var columnsToRead = columns as IReadOnlyCollection<string> ?? columns.ToList();
-        var requestedColumns = ParquetColumnMapper.PrepareRequestedColumns(columnsToRead, availableColumns);
+        var columnsToRead = ParquetColumnMapper.GetRequestedColumns(columns, schema).ToArray();
 
         var numRowGroups = reader.FileMetaData.NumRowGroups;
         for (var rowGroupIndex = 0; rowGroupIndex < numRowGroups; rowGroupIndex++)
         {
-            foreach (var row in ParquetRowBuilder.ReadRowGroup(reader, rowGroupIndex, requestedColumns, availableColumns))
+            foreach (var row in ParquetRowBuilder.ReadRowGroup(reader, rowGroupIndex, columnsToRead))
             {
                 yield return row;
             }

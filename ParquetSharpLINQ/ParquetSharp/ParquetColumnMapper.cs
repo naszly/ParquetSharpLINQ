@@ -10,45 +10,41 @@ internal static class ParquetColumnMapper
     private static readonly StringComparer ColumnNameComparer = StringComparer.OrdinalIgnoreCase;
 
     /// <summary>
-    /// Builds a map of column names to their handles from a schema.
+    /// Maps requested column names to their corresponding Parquet schema descriptors.
     /// </summary>
-    public static Dictionary<string, ColumnHandle> BuildColumnMap(SchemaDescriptor schema)
-    {
-        var columnMap = new Dictionary<string, ColumnHandle>(ColumnNameComparer);
-        
-        for (var i = 0; i < schema.NumColumns; ++i)
-        {
-            var columnDescriptor = schema.Column(i);
-            var path = GetColumnPath(columnDescriptor);
-            columnMap.TryAdd(path, new ColumnHandle(i, columnDescriptor));
-        }
-
-        return columnMap;
-    }
-
-    /// <summary>
-    /// Extracts the dot-separated column path from a descriptor.
-    /// </summary>
-    public static string GetColumnPath(ColumnDescriptor descriptor)
-    {
-        return descriptor.Path.ToDotString();
-    }
-
-    /// <summary>
-    /// Prepares the list of columns to read. If no columns specified, returns all available columns.
-    /// </summary>
-    public static List<string> PrepareRequestedColumns(
+    public static List<ColumnHandle> GetRequestedColumns(
         IEnumerable<string> requestedColumns,
-        Dictionary<string, ColumnHandle> availableColumns)
+        SchemaDescriptor schema)
     {
-        var columns = requestedColumns.ToList();
-        if (columns.Count != 0)
-        {
-            return columns;
-        }
+        List<ColumnHandle> mappings;
 
-        columns.AddRange(availableColumns.Keys);
-        return columns;
+        var columns = requestedColumns as string[] ?? requestedColumns.ToArray();
+        
+        if (columns.Any())
+        {
+            mappings = [];
+            for (var i = 0; i < schema.NumColumns; i++)
+            {
+                var columnDescriptor = schema.Column(i);
+                var columnName = columnDescriptor.Name;
+
+                if (columns.Contains(columnName, ColumnNameComparer))
+                {
+                    mappings.Add(new ColumnHandle(i, columnDescriptor));
+                }
+            }
+        }
+        else
+        {
+            mappings = new List<ColumnHandle>(schema.NumColumns);
+            for (var i = 0; i < schema.NumColumns; i++)
+            {
+                var columnDescriptor = schema.Column(i);
+                mappings.Add(new ColumnHandle(i, columnDescriptor));
+            }
+        }
+        
+        return mappings;
     }
 
     /// <summary>

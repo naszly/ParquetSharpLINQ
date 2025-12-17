@@ -14,8 +14,7 @@ internal static class ParquetRowBuilder
     public static IEnumerable<ParquetRow> ReadRowGroup(
         ParquetFileReader reader,
         int rowGroupIndex,
-        List<string> columnsToRead,
-        Dictionary<string, ParquetColumnMapper.ColumnHandle> availableColumns)
+        ParquetColumnMapper.ColumnHandle[] columnsToRead)
     {
         using var rowGroupReader = reader.RowGroup(rowGroupIndex);
         var numRows = checked((int)rowGroupReader.MetaData.NumRows);
@@ -25,9 +24,9 @@ internal static class ParquetRowBuilder
             yield break;
         }
 
-        var columnNames = columnsToRead.ToArray();
+        var columnNames = columnsToRead.Select(x => x.Descriptor.Name).ToArray();
 
-        var columnBuffers = ReadAllColumns(rowGroupReader, columnNames, availableColumns, numRows);
+        var columnBuffers = ReadAllColumns(rowGroupReader, columnsToRead, numRows);
 
         for (var rowIndex = 0; rowIndex < numRows; rowIndex++)
         {
@@ -40,16 +39,14 @@ internal static class ParquetRowBuilder
     /// </summary>
     private static ImmutableArray<object?>[] ReadAllColumns(
         RowGroupReader rowGroupReader,
-        string[] columnNames,
-        Dictionary<string, ParquetColumnMapper.ColumnHandle> availableColumns,
+        ParquetColumnMapper.ColumnHandle[] columnHandles,
         int numRows)
     {
-        var buffers = new ImmutableArray<object?>[columnNames.Length];
+        var buffers = new ImmutableArray<object?>[columnHandles.Length];
 
-        for (var i = 0; i < columnNames.Length; i++)
+        for (var i = 0; i < columnHandles.Length; i++)
         {
-            var columnName = columnNames[i];
-            var handle = availableColumns[columnName];
+            var handle = columnHandles[i];
             buffers[i] = ParquetColumnReader.ReadColumn(rowGroupReader, handle, numRows);
         }
 
