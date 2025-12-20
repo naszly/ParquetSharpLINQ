@@ -15,7 +15,7 @@ internal sealed class QueryAnalyzer
     /// </summary>
     public HashSet<string>? RequestedColumns { get; private set; }
     
-    public Dictionary<string, object?> PartitionFilters { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<QueryPredicate> Predicates { get; } = [];
     
     /// <summary>
     /// Range filters extracted from WHERE predicates for statistics-based pruning.
@@ -128,17 +128,34 @@ internal sealed class QueryAnalyzer
 
     private void AnalyzeWhereClause(LambdaExpression lambda)
     {
-        AnalyzePredicateForPartitionFilters(lambda.Body);
+        if (lambda.Body.Type != typeof(bool))
+            throw new NotSupportedException("Predicate must return a boolean value.");
+
+        Predicates.Add(new QueryPredicate(lambda, QueryPredicatePropertyCollector.Collect(lambda)));
+        AnalyzePredicateForRangeFilters(lambda.Body);
     }
 
-    private void AnalyzePredicateForPartitionFilters(Expression expression)
+    private void AnalyzePredicateForRangeFilters(Expression expression)
     {
-        if (expression is not BinaryExpression binary) return;
+        if (expression is not BinaryExpression binary)
+            return;
 
         if (binary.NodeType == ExpressionType.AndAlso)
         {
-            AnalyzePredicateForPartitionFilters(binary.Left);
-            AnalyzePredicateForPartitionFilters(binary.Right);
+            AnalyzePredicateForRangeFilters(binary.Left);
+            AnalyzePredicateForRangeFilters(binary.Right);
+            return;
+        }
+
+        if (binary.NodeType == ExpressionType.OrElse)
+        {
+            AnalyzeBinaryExpression(binary);
+            return;
+        }
+
+        if (binary.NodeType == ExpressionType.NotEqual)
+        {
+            AnalyzeBinaryExpression(binary);
             return;
         }
 
@@ -157,8 +174,6 @@ internal sealed class QueryAnalyzer
         // Extract range filters for statistics-based pruning (regular property comparisons)
         RangeFilterExtractor.ExtractFromBinaryExpression(binary, RangeFilters);
 
-        // Continue with existing partition filter extraction
-        ExtractPartitionFilter(binary);
         AnalyzeBinaryExpression(binary);
     }
 
@@ -174,43 +189,14 @@ internal sealed class QueryAnalyzer
         };
     }
 
-    private void ExtractPartitionFilter(BinaryExpression binary)
-    {
-        if (binary.NodeType == ExpressionType.Equal)
-        {
-            string? propertyName = null;
-            object? value = null;
-
-            switch (binary)
-            {
-                case { Left: MemberExpression leftMember, Right: ConstantExpression rightConst }:
-                    propertyName = leftMember.Member.Name;
-                    value = rightConst.Value;
-                    break;
-                case { Right: MemberExpression rightMember, Left: ConstantExpression leftConst }:
-                    propertyName = rightMember.Member.Name;
-                    value = leftConst.Value;
-                    break;
-                case { Left: MemberExpression leftMember }:
-                    propertyName = leftMember.Member.Name;
-                    value = TryEvaluateExpression(binary.Right);
-                    break;
-                case { Right: MemberExpression rightMember }:
-                    propertyName = rightMember.Member.Name;
-                    value = TryEvaluateExpression(binary.Left);
-                    break;
-            }
-
-            if (propertyName != null)
-                PartitionFilters.TryAdd(propertyName, value);
-        }
-    }
-
     /// <summary>
     /// Extracts range filter from string.Compare method calls.
     /// Handles patterns like: string.Compare(x.Name, "value") &gt;= 0
     /// </summary>
-    private void ExtractStringCompareRangeFilter(MethodCallExpression methodCall, ExpressionType comparisonType, Expression comparisonTarget)
+    private void ExtractStringCompareRangeFilter(
+        MethodCallExpression methodCall,
+        ExpressionType comparisonType,
+        Expression comparisonTarget)
     {
         // Check if this is string.Compare
         if (methodCall.Method.DeclaringType != typeof(string) || methodCall.Method.Name != "Compare")
@@ -251,16 +237,19 @@ internal sealed class QueryAnalyzer
         if (compareToValue is not int compareToInt || compareToInt != 0)
             return; // Only handle comparison to 0
 
-        var filter = RangeFilters.GetOrAdd(propertyName, _ => new RangeFilter());
+        if (comparisonType != ExpressionType.NotEqual)
+        {
+            var filter = RangeFilters.GetOrAdd(propertyName, _ => new RangeFilter());
 
-        // Apply the comparison logic based on operand order
-        if (isPropertyFirst)
-        {
-            ApplyPropertyFirstComparison(filter, value, comparisonType);
-        }
-        else
-        {
-            ApplyPropertySecondComparison(filter, value, comparisonType);
+            // Apply the comparison logic based on operand order
+            if (isPropertyFirst)
+            {
+                ApplyPropertyFirstComparison(filter, value, comparisonType);
+            }
+            else
+            {
+                ApplyPropertySecondComparison(filter, value, comparisonType);
+            }
         }
     }
 

@@ -42,7 +42,7 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
 
         // Execute query using enumeration strategy with statistics-based pruning
         var sourceQueryable = _enumerationStrategy.Enumerate(
-            analysis.PartitionFilters.Count > 0 ? analysis.PartitionFilters : null,
+            analysis.Predicates.Count > 0 ? analysis.Predicates : null,
             analysis.RequestedColumns,
             analysis.RangeFilters.Count > 0 ? analysis.RangeFilters : null
         ).AsQueryable();

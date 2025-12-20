@@ -46,15 +46,15 @@ internal class ParquetEnumerationStrategy<T> where T : new()
     }
 
     public IEnumerable<T> Enumerate(
-        IReadOnlyDictionary<string, object?>? partitionFilters = null,
+        IReadOnlyCollection<QueryPredicate>? predicates = null,
         IReadOnlyCollection<string>? requestedColumns = null,
         IReadOnlyDictionary<string, RangeFilter>? rangeFilters = null)
     {
         var partitions = DiscoverPartitions();
         
-        if (partitionFilters is { Count: > 0 })
+        if (predicates is { Count: > 0 })
         {
-            partitions = FilterPartitions(partitions, partitionFilters);
+            partitions = FilterPartitions(partitions, predicates);
         }
 
         if (requestedColumns is { Count: > 0 } && PropertyColumnMapper<T>.AreAllColumnsPartitions(requestedColumns))
@@ -94,10 +94,9 @@ internal class ParquetEnumerationStrategy<T> where T : new()
 
     private static IEnumerable<Partition> FilterPartitions(
         IEnumerable<Partition> partitions,
-        IReadOnlyDictionary<string, object?> partitionFilters)
+        IReadOnlyCollection<QueryPredicate> predicates)
     {
-        var mappedFilters = PropertyColumnMapper<T>.MapPropertyNamesToColumnNames(partitionFilters);
-        return PartitionFilter.PrunePartitions(partitions, mappedFilters);
+        return PartitionFilter.PrunePartitions<T>(partitions, predicates);
     }
 
     private IEnumerable<T> EnumerateFromPartitionMetadataOnly(IEnumerable<Partition> partitions)

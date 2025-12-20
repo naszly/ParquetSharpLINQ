@@ -1,73 +1,201 @@
+using System.Linq.Expressions;
+using System.Reflection;
+using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Models;
+using ParquetSharpLINQ.Query;
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
 
 namespace ParquetSharpLINQ.Enumeration;
 
-internal static class PartitionFilter
+internal static partial class PartitionFilter
 {
-    public static IEnumerable<Partition> PrunePartitions(
+    public static IEnumerable<Partition> PrunePartitions<T>(
         IEnumerable<Partition> partitions,
-        IReadOnlyDictionary<string, object?> filters)
+        IReadOnlyCollection<QueryPredicate> predicates)
+        where T : new()
     {
-        return partitions.Where(partition => PartitionMatchesAllFilters(partition, filters));
+        if (predicates.Count == 0)
+            return partitions;
+
+        var partitionProperties = GetPartitionPropertyNames<T>();
+        var propertyToColumn = BuildPropertyToColumnMap<T>();
+        var applicablePredicates = predicates
+            .Where(p => p.Expression.Parameters.Count == 1)
+            .ToArray();
+
+        if (applicablePredicates.Length == 0)
+            return partitions;
+
+        return partitions.Where(p => PartitionMatchesAllPredicates(
+            p,
+            applicablePredicates,
+            partitionProperties,
+            propertyToColumn));
     }
 
-    private static bool PartitionMatchesAllFilters(
+    private static bool PartitionMatchesAllPredicates(
         Partition partition,
-        IReadOnlyDictionary<string, object?> filters)
+        IReadOnlyCollection<QueryPredicate> predicates,
+        IImmutableSet<string> partitionProperties,
+        IReadOnlyDictionary<string, string> propertyToColumn)
     {
-        foreach (var (key, expectedValue) in filters)
+        foreach (var predicate in predicates)
         {
-            if (partition.Values.TryGetValue(key, out var actualValue))
-            {
-                if (!ValuesMatch(actualValue, expectedValue))
-                {
-                    return false;
-                }
-            }
+            if (!TryEvaluatePredicate(partition, predicate, partitionProperties, propertyToColumn, out var result))
+                continue;
+
+            if (!result)
+                return false;
         }
 
         return true;
     }
 
-    private static bool ValuesMatch(string partitionValue, object? filterValue)
+    private static bool TryEvaluatePredicate(
+        Partition partition,
+        QueryPredicate predicate,
+        IImmutableSet<string> partitionProperties,
+        IReadOnlyDictionary<string, string> propertyToColumn,
+        out bool result)
     {
-        if (filterValue == null)
+        if (!IsPartitionPredicate(predicate, partitionProperties))
         {
-            return string.IsNullOrEmpty(partitionValue);
+            result = true;
+            return false;
         }
 
-        if (IsNumeric(filterValue))
+        var parameter = predicate.Expression.Parameters[0];
+        var evaluator = new PartitionPredicateEvaluator(
+            partition,
+            parameter,
+            partitionProperties,
+            propertyToColumn);
+
+        var rewritten = evaluator.Visit(predicate.Expression.Body);
+
+        if (evaluator.HasNonPartitionAccess || evaluator.HasMissingValues)
         {
-            if (long.TryParse(partitionValue, out var partitionNumeric))
-            {
-                var filterNumeric = Convert.ToInt64(filterValue);
-                return partitionNumeric == filterNumeric;
-            }
+            result = true;
+            return false;
         }
 
-        if (filterValue is DateTime filterDateTime)
-        {
-            if (DateTime.TryParse(partitionValue, out var partitionDateTime))
-            {
-                return partitionDateTime == filterDateTime;
-            }
-        }
+        if (rewritten.Type != typeof(bool))
+            throw new NotSupportedException($"Partition predicate must return a boolean value, got {rewritten.Type}.");
 
-        if (filterValue is DateOnly filterDateOnly)
-        {
-            if (DateOnly.TryParse(partitionValue, out var partitionDateOnly))
-            {
-                return partitionDateOnly == filterDateOnly;
-            }
-        }
-
-        var filterString = filterValue.ToString();
-        return string.Equals(partitionValue, filterString, StringComparison.OrdinalIgnoreCase);
+        var lambda = Expression.Lambda<Func<bool>>(rewritten);
+        result = lambda.Compile().Invoke();
+        return true;
     }
 
-    private static bool IsNumeric(object value)
+    private sealed class PartitionPredicateEvaluator : ExpressionVisitor
     {
-        return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
+        private readonly Partition _partition;
+        private readonly ParameterExpression _parameter;
+        private readonly IImmutableSet<string> _partitionProperties;
+        private readonly IReadOnlyDictionary<string, string> _propertyToColumn;
+
+        public bool HasMissingValues { get; private set; }
+        public bool HasNonPartitionAccess { get; private set; }
+
+        public PartitionPredicateEvaluator(
+            Partition partition,
+            ParameterExpression parameter,
+            IImmutableSet<string> partitionProperties,
+            IReadOnlyDictionary<string, string> propertyToColumn)
+        {
+            _partition = partition;
+            _parameter = parameter;
+            _partitionProperties = partitionProperties;
+            _propertyToColumn = propertyToColumn;
+        }
+
+        protected override Expression VisitMember(MemberExpression node)
+        {
+            if (node.Member is PropertyInfo property && ExpressionHelpers.IsParameterMember(node, _parameter))
+            {
+                if (!_partitionProperties.Contains(property.Name))
+                {
+                    HasNonPartitionAccess = true;
+                    return Expression.Default(property.PropertyType);
+                }
+
+                var columnName = _propertyToColumn.TryGetValue(property.Name, out var mapped)
+                    ? mapped
+                    : property.Name;
+
+                if (!_partition.Values.TryGetValue(columnName, out var rawValue))
+                {
+                    HasMissingValues = true;
+                    return Expression.Default(property.PropertyType);
+                }
+
+                var converted = PartitionValueConverter.Convert(rawValue, property.PropertyType);
+                return Expression.Constant(converted, property.PropertyType);
+            }
+
+            return base.VisitMember(node);
+        }
+
+        protected override Expression VisitConstant(ConstantExpression node)
+        {
+            if (node.Value is string stringValue && node.Type == typeof(string))
+            {
+                var normalized = FilterValueNormalizer.NormalizePartitionValue(stringValue);
+                return Expression.Constant(normalized, typeof(string));
+            }
+
+            return base.VisitConstant(node);
+        }
+    }
+
+    // Cache of partition property names per Type to avoid repeated reflection (immutable)
+    private static readonly ConcurrentDictionary<Type, IImmutableSet<string>> PartitionPropertyNamesCache = new();
+
+    // Cache of property->column name maps per Type to avoid repeated reflection (immutable)
+    private static readonly ConcurrentDictionary<Type, IImmutableDictionary<string, string>> PropertyToColumnMapCache = new();
+
+    private static IImmutableSet<string> GetPartitionPropertyNames<T>() where T : new()
+    {
+        return PartitionPropertyNamesCache.GetOrAdd(typeof(T), t =>
+        {
+            var properties = t.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+            var builder = ImmutableHashSet.CreateBuilder<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var property in properties)
+            {
+                var attr = property.GetCustomAttribute<ParquetColumnAttribute>();
+                if (attr?.IsPartition == true)
+                    builder.Add(property.Name);
+            }
+
+            return builder.ToImmutable();
+        });
+    }
+
+    private static IImmutableDictionary<string, string> BuildPropertyToColumnMap<T>() where T : new()
+    {
+        return PropertyToColumnMapCache.GetOrAdd(typeof(T), t =>
+        {
+            var builder = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.OrdinalIgnoreCase);
+            var properties = t.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+
+            foreach (var property in properties)
+            {
+                var attr = property.GetCustomAttribute<ParquetColumnAttribute>();
+                var columnName = string.IsNullOrWhiteSpace(attr?.Name) ? property.Name : attr.Name;
+                builder[property.Name] = columnName;
+            }
+
+            return builder.ToImmutable();
+        });
+    }
+
+    private static bool IsPartitionPredicate(QueryPredicate predicate, IImmutableSet<string> partitionProperties)
+    {
+        if (predicate.Properties.Count == 0)
+            return false;
+
+        return predicate.Properties.All(property => partitionProperties.Contains(property.Name));
     }
 }
-

@@ -9,29 +9,32 @@ namespace ParquetSharpLINQ.Tests.Unit.Query;
 public class QueryAnalyzerTests
 {
     [Test]
-    public void Analyze_WithSimpleWhere_ExtractsPartitionFilter()
+    public void Analyze_WithSimpleWhere_StoresPredicateAndRangeFilter()
     {
         var table = CreateMockTable();
         var query = table.Where(e => e.Year == 2024);
 
         var analysis = QueryAnalyzer.Analyze(query.Expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
-        Assert.That(analysis.PartitionFilters["Year"], Is.EqualTo(2024));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
+        Assert.That(analysis.RangeFilters["Year"].Min, Is.EqualTo(2024));
+        Assert.That(analysis.RangeFilters["Year"].Max, Is.EqualTo(2024));
     }
 
     [Test]
-    public void Analyze_WithMultipleWhereConditions_ExtractsAllFilters()
+    public void Analyze_WithMultipleWhereConditions_StoresRangeFilters()
     {
         var table = CreateMockTable();
         var query = table.Where(e => e.Year == 2024 && e.Region == "US");
 
         var analysis = QueryAnalyzer.Analyze(query.Expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Region"));
-        Assert.That(analysis.PartitionFilters["Year"], Is.EqualTo(2024));
-        Assert.That(analysis.PartitionFilters["Region"], Is.EqualTo("US"));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Region"));
+        Assert.That(analysis.RangeFilters["Year"].Min, Is.EqualTo(2024));
+        Assert.That(analysis.RangeFilters["Region"].Min, Is.EqualTo("US"));
     }
 
     [Test]
@@ -48,7 +51,7 @@ public class QueryAnalyzerTests
     }
 
     [Test]
-    public void Analyze_WithComplexQuery_ExtractsBothFiltersAndColumns()
+    public void Analyze_WithComplexQuery_ExtractsPredicatesAndColumns()
     {
         var table = CreateMockTable();
         var query = table
@@ -57,14 +60,15 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(query.Expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
 
         Assert.That(analysis.RequestedColumns, Does.Contain("Id"));
         Assert.That(analysis.RequestedColumns, Does.Contain("Amount"));
     }
 
     [Test]
-    public void Analyze_WithNoFilters_ReturnsEmptyFilters()
+    public void Analyze_WithNonPartitionFilter_StoresPredicate()
     {
         var table = CreateMockTable();
         var query = table.Where(e => e.Amount > 100); // Non-partition filter
@@ -74,12 +78,12 @@ public class QueryAnalyzerTests
         // RequestedColumns should be null when there's no SELECT projection
         Assert.That(analysis.RequestedColumns, Is.Null, 
             "RequestedColumns should be null when there's no SELECT projection");
-        // Partition filters should also be empty since Amount is not a partition
-        Assert.That(analysis.PartitionFilters, Is.Empty);
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Amount"));
     }
 
     [Test]
-    public void Analyze_WithCountPredicate_ExtractsPartitionFilter()
+    public void Analyze_WithCountPredicate_StoresPredicate()
     {
         var table = CreateMockTable();
         Expression<Func<IQueryable<TestEntity>, int>> countExpr = q => q.Count(e => e.Year == 2024);
@@ -87,12 +91,12 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
-        Assert.That(analysis.PartitionFilters["Year"], Is.EqualTo(2024));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
     }
 
     [Test]
-    public void Analyze_WithAnyPredicate_ExtractsPartitionFilter()
+    public void Analyze_WithAnyPredicate_StoresPredicates()
     {
         var table = CreateMockTable();
         Expression<Func<IQueryable<TestEntity>, bool>> anyExpr = q => q.Any(e => e.Year == 2024 && e.Region == "US");
@@ -100,14 +104,13 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Region"));
-        Assert.That(analysis.PartitionFilters["Year"], Is.EqualTo(2024));
-        Assert.That(analysis.PartitionFilters["Region"], Is.EqualTo("US"));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Region"));
     }
 
     [Test]
-    public void Analyze_WithFirstPredicate_ExtractsPartitionFilter()
+    public void Analyze_WithFirstPredicate_StoresPredicate()
     {
         var table = CreateMockTable();
         Expression<Func<IQueryable<TestEntity>, TestEntity>> firstExpr = q => q.First(e => e.Year == 2024);
@@ -115,12 +118,12 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
-        Assert.That(analysis.PartitionFilters["Year"], Is.EqualTo(2024));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
     }
 
     [Test]
-    public void Analyze_WithFirstOrDefaultPredicate_ExtractsPartitionFilter()
+    public void Analyze_WithFirstOrDefaultPredicate_StoresPredicate()
     {
         var table = CreateMockTable();
         Expression<Func<IQueryable<TestEntity>, TestEntity?>> firstOrDefaultExpr =
@@ -129,12 +132,12 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Region"));
-        Assert.That(analysis.PartitionFilters["Region"], Is.EqualTo("EU"));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Region"));
     }
 
     [Test]
-    public void Analyze_WithSinglePredicate_ExtractsPartitionFilter()
+    public void Analyze_WithSinglePredicate_StoresPredicate()
     {
         var table = CreateMockTable();
         Expression<Func<IQueryable<TestEntity>, TestEntity>> singleExpr = q =>
@@ -143,12 +146,13 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Region"));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Region"));
     }
 
     [Test]
-    public void Analyze_WithAllPredicate_ExtractsPartitionFilter()
+    public void Analyze_WithAllPredicate_StoresPredicate()
     {
         var table = CreateMockTable();
         Expression<Func<IQueryable<TestEntity>, bool>> allExpr = q => q.All(e => e.Year == 2024);
@@ -156,9 +160,107 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(expression);
 
-        Assert.That(analysis.PartitionFilters, Does.ContainKey("Year"));
-        Assert.That(analysis.PartitionFilters["Year"], Is.EqualTo(2024));
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
     }
+
+    [Test]
+    public void Analyze_WithStringMethods_StartsWithChar_StoresPredicateWithoutRangeFilters()
+    {
+        var table = CreateMockTable();
+        var query = table.Where(e => e.Region != null && e.Region.StartsWith('U'));
+
+        var analysis = QueryAnalyzer.Analyze(query.Expression);
+
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Is.Empty);
+    }
+
+    [Test]
+    public void Analyze_WithStringMethods_ContainsChar_StoresPredicateWithoutRangeFilters()
+    {
+        var table = CreateMockTable();
+        var query = table.Where(e => e.Region != null && e.Region.Contains('S'));
+
+        var analysis = QueryAnalyzer.Analyze(query.Expression);
+
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Is.Empty);
+    }
+
+    [Test]
+    public void Analyze_WithStringMethods_StartsWithString_StoresPredicateWithoutRangeFilters()
+    {
+        var table = CreateMockTable();
+        var query = table.Where(e => e.Region != null && e.Region.StartsWith("US"));
+
+        var analysis = QueryAnalyzer.Analyze(query.Expression);
+
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Is.Empty);
+    }
+
+    [Test]
+    public void Analyze_WithNotEqual_StoresPredicateWithoutRangeFilter()
+    {
+        var table = CreateMockTable();
+        var query = table.Where(e => e.Year != 2024);
+
+        var analysis = QueryAnalyzer.Analyze(query.Expression);
+
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Is.Empty);
+    }
+
+    [Test]
+    public void Analyze_WithOrPredicate_StoresPredicateWithoutRangeFilters()
+    {
+        var table = CreateMockTable();
+        var query = table.Where(e => e.Year == 2024 || e.Year == 2025);
+
+        var analysis = QueryAnalyzer.Analyze(query.Expression);
+
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Is.Empty);
+    }
+
+    [Test]
+    public void Analyze_WithSupportedStringMethods_DoesNotThrow()
+    {
+        var table = CreateMockTable();
+        var predicates = new Expression<Func<TestEntity, bool>>[]
+        {
+            e => e.Region != null && e.Region.EndsWith("US"),
+            e => e.Region != null && e.Region.EndsWith("US", StringComparison.OrdinalIgnoreCase),
+            e => e.Region != null && e.Region.Equals("US"),
+            e => e.Region != null && e.Region.Equals("US", StringComparison.OrdinalIgnoreCase),
+            e => string.Equals(e.Region, "US", StringComparison.OrdinalIgnoreCase),
+            e => e.Region != null && e.Region.ToLower() == "us",
+            e => e.Region != null && e.Region.ToUpperInvariant() == "US",
+            e => e.Region != null && e.Region.Trim() == "US",
+            e => string.IsNullOrEmpty(e.Region),
+            e => string.IsNullOrWhiteSpace(e.Region)
+        };
+
+        foreach (var predicate in predicates)
+        {
+            var query = table.Where(predicate);
+            Assert.DoesNotThrow(() => QueryAnalyzer.Analyze(query.Expression));
+        }
+    }
+
+    [Test]
+    public void Analyze_WithNotContainsStringMethod_StoresPredicateWithoutRangeFilters()
+    {
+        var table = CreateMockTable();
+        var query = table.Where(e => e.Region != null && !e.Region.Contains("US"));
+
+        var analysis = QueryAnalyzer.Analyze(query.Expression);
+
+        Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
+        Assert.That(analysis.RangeFilters, Is.Empty);
+    }
+
 
     private static IQueryable<TestEntity> CreateMockTable()
     {

@@ -77,7 +77,7 @@ public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T 
 
     public IEnumerable<T> AsEnumerable()
     {
-        return _enumerationStrategy.Enumerate(null, null);
+        return _enumerationStrategy.Enumerate(null, null, null);
     }
 
     public IEnumerable<Partition> DiscoverPartitions()
