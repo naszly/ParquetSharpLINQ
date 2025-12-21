@@ -115,7 +115,7 @@ internal class Program
         }
 
         // Run benchmarks
-        BenchmarkRunner.Run<ParquetQueryBenchmarks>();
+        BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
     }
 }
 
@@ -267,5 +267,100 @@ public class PartitionDiscoveryBenchmarks
     {
         using var table = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
         return table.DiscoverPartitions().Count();
+    }
+}
+
+[MemoryDiagnoser]
+[SimpleJob(warmupCount: 3, iterationCount: 5)]
+public class IndexedColumnBenchmarks
+{
+    private const int RecordsPerPartition = 30000;
+    private string _dataPath = null!;
+    private ParquetTable<IndexedSalesRecord> _tableIndexed = null!;
+    private ParquetTable<SalesRecord> _tableNonIndexed = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _dataPath = Path.Combine(Path.GetTempPath(), $"indexed_benchmark_data_{Guid.NewGuid():N}");
+        Console.WriteLine($"Generating test data in: {_dataPath}");
+
+        var generator = new TestDataGenerator();
+        generator.GenerateParquetFiles(_dataPath, RecordsPerPartition,
+            Enumerable.Range(2022, 3).ToArray(),
+            rowGroupsPerFile: 8,
+            filesPerPartition: 3);
+
+        _tableIndexed = ParquetTable<IndexedSalesRecord>.Factory.FromFileSystem(_dataPath);
+        _tableNonIndexed = ParquetTable<SalesRecord>.Factory.FromFileSystem(_dataPath);
+
+        _ = _tableIndexed
+            .Where(r => r.ClientId.StartsWith("46"))
+            .Take(1)
+            .ToList();
+        
+        _ = _tableNonIndexed
+            .Where(r => r.ClientId.StartsWith("46"))
+            .Take(1)
+            .ToList();
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _tableIndexed.Dispose();
+        if (Directory.Exists(_dataPath)) Directory.Delete(_dataPath, true);
+    }
+
+    [Benchmark(Description = "Indexed column count")]
+    public int IndexedCount()
+    {
+        return _tableIndexed
+            .Count(r => r.ClientId.StartsWith("46"));
+    }
+
+    [Benchmark(Description = "Non-indexed column count")]
+    public int NonIndexedCount()
+    {
+        return _tableNonIndexed
+            .Count(r => r.ClientId.StartsWith("46"));
+    }
+    
+    [Benchmark(Description = "Indexed column filter")]
+    public int IndexedWhere()
+    {
+        return _tableIndexed
+            .Where(r => r.ClientId.StartsWith("46"))
+            .ToList()
+            .Count;
+    }
+
+    [Benchmark(Description = "Non-indexed column filter")]
+    public int NonIndexedWhere()
+    {
+        return _tableNonIndexed
+            .Where(r => r.ClientId.StartsWith("46"))
+            .ToList()
+            .Count;
+    }
+
+    [Benchmark(Description = "Indexed column filter + projection")]
+    public int IndexedWhereProjection()
+    {
+        return _tableIndexed
+            .Where(r => r.ClientId.StartsWith("46"))
+            .Select(r => r.ProductName)
+            .ToList()
+            .Count;
+    }
+
+    [Benchmark(Description = "Non-indexed column filter + projection")]
+    public int NonIndexedWhereProjection()
+    {
+        return _tableNonIndexed
+            .Where(r => r.ClientId.StartsWith("46"))
+            .Select(r => r.ProductName)
+            .ToList()
+            .Count;
     }
 }

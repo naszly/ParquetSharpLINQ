@@ -3,9 +3,9 @@ using ParquetSharpLINQ.Attributes;
 namespace ParquetSharpLINQ.Benchmarks;
 
 /// <summary>
-/// Test entity for performance benchmarks
+/// Test entity matching generated SalesRecord schema, with indexed CustomerId.
 /// </summary>
-public class SalesRecord
+public class IndexedSalesRecord
 {
     [ParquetColumn("id")] public long Id { get; set; }
 
@@ -21,11 +21,10 @@ public class SalesRecord
 
     [ParquetColumn("customer_id")] public long CustomerId { get; set; }
 
-    [ParquetColumn("client_id")] public string ClientId { get; set; } = string.Empty;
+    [ParquetColumn("client_id", Indexed = true)] public string ClientId { get; set; } = string.Empty;
 
     [ParquetColumn("is_discounted")] public bool IsDiscounted { get; set; }
 
-    // Partition columns
     [ParquetColumn("year", IsPartition = true)]
     public int Year { get; set; }
 
