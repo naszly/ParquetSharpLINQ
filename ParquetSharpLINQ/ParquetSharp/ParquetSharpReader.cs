@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ParquetSharp;
 using ParquetSharpLINQ.Interfaces;
 
@@ -25,14 +26,24 @@ public class ParquetSharpReader : IParquetReader
         }
     }
 
-    public IEnumerable<ParquetRow> ReadRows(string filePath, IEnumerable<string> columns)
+    public IEnumerable<ParquetRow> ReadRows(
+        string filePath,
+        IEnumerable<string> columns,
+        IReadOnlySet<int>? rowGroupsToRead)
     {
         ValidateFilePath(filePath);
         using var stream = File.OpenRead(filePath);
-        foreach (var row in ParquetStreamReader.ReadRowsFromStream(stream, columns))
+        foreach (var row in ParquetStreamReader.ReadRowsFromStream(stream, columns, rowGroupsToRead))
         {
             yield return row;
         }
+    }
+
+    public IReadOnlyList<ImmutableArray<object?>> ReadColumnValuesByRowGroup(string filePath, string columnName)
+    {
+        ValidateFilePath(filePath);
+        using var stream = File.OpenRead(filePath);
+        return ParquetStreamReader.ReadColumnValuesByRowGroupFromStream(stream, columnName);
     }
 
     private static void ValidateDirectory(string directory)
@@ -55,4 +66,3 @@ public class ParquetSharpReader : IParquetReader
         }
     }
 }
-

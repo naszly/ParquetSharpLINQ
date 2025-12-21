@@ -3,8 +3,10 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Enumeration;
+using ParquetSharpLINQ.Enumeration.Indexing;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
+using ParquetSharpLINQ.ParquetSharp;
 using ParquetSharpLINQ.Query;
 
 namespace ParquetSharpLINQ;
@@ -23,6 +25,7 @@ internal class ParquetEnumerationStrategy<T> where T : new()
     private DateTime _lastPartitionDiscoveryTime = DateTime.MinValue;
     private readonly TimeSpan _partitionCacheDuration = TimeSpan.FromMinutes(5);
     private readonly Lock _partitionDiscoveryLock = new();
+    private readonly IndexedPredicateEngine<T> _indexedPredicateEngine;
 
     private readonly int _degreeOfParallelism;
 
@@ -36,6 +39,7 @@ internal class ParquetEnumerationStrategy<T> where T : new()
         _partitionDiscoveryStrategy = discoveryStrategy ?? throw new ArgumentNullException(nameof(discoveryStrategy));
         _parquetReader = reader ?? throw new ArgumentNullException(nameof(reader));
         _parquetMapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+        _indexedPredicateEngine = new IndexedPredicateEngine<T>(_parquetReader);
         
         if (partitionCacheDuration.HasValue)
         {
@@ -51,24 +55,38 @@ internal class ParquetEnumerationStrategy<T> where T : new()
         IReadOnlyDictionary<string, RangeFilter>? rangeFilters = null)
     {
         var partitions = DiscoverPartitions();
-        
+
+        var predicatePropertyNames = GetPredicatePropertyNames(predicates);
+        var rowPredicates = RowPredicateBuilder<T>.BuildRowPredicates(predicates);
+        var indexedConstraints = _indexedPredicateEngine.BuildIndexedPredicateConstraints(predicates, allowWarmup: true);
+
         if (predicates is { Count: > 0 })
         {
             partitions = FilterPartitions(partitions, predicates);
         }
 
-        if (requestedColumns is { Count: > 0 } && PropertyColumnMapper<T>.AreAllColumnsPartitions(requestedColumns))
+        if (requestedColumns is { Count: > 0 }
+            && PropertyColumnMapper<T>.AreAllColumnsPartitions(requestedColumns)
+            && (predicatePropertyNames.Count == 0 || PropertyColumnMapper<T>.AreAllColumnsPartitions(predicatePropertyNames)))
         {
             return EnumerateFromPartitionMetadataOnly(partitions);
         }
 
+        var effectiveRequestedColumns = MergeRequestedColumns(requestedColumns, predicatePropertyNames);
+
         if (_degreeOfParallelism > 1)
         {
-            return EnumerateFromParquetParallelAsync(partitions, requestedColumns, rangeFilters, _degreeOfParallelism)
+            return EnumerateFromParquetParallelAsync(
+                    partitions,
+                    effectiveRequestedColumns,
+                    indexedConstraints,
+                    rowPredicates,
+                    rangeFilters,
+                    _degreeOfParallelism)
                 .ToBlockingEnumerable();
         }
 
-        return EnumerateFromParquet(partitions, requestedColumns, rangeFilters);
+        return EnumerateFromParquet(partitions, effectiveRequestedColumns, indexedConstraints, rowPredicates, rangeFilters);
     }
     
     /// <summary>
@@ -85,8 +103,9 @@ internal class ParquetEnumerationStrategy<T> where T : new()
                 return _discoveredPartitions;
             }
 
-            _discoveredPartitions = _partitionDiscoveryStrategy.DiscoverPartitions().ToImmutableArray();
+            _discoveredPartitions = [.._partitionDiscoveryStrategy.DiscoverPartitions()];
             _lastPartitionDiscoveryTime = now;
+            ClearIndexedColumnCache();
 
             return _discoveredPartitions;
         }
@@ -109,6 +128,8 @@ internal class ParquetEnumerationStrategy<T> where T : new()
     private IEnumerable<T> EnumerateFromParquet(
         IEnumerable<Partition> partitions,
         IReadOnlyCollection<string>? requestedColumns,
+        IReadOnlyList<IndexedPredicateConstraint> indexedConstraints,
+        IReadOnlyList<Func<ParquetRow, bool>> rowPredicates,
         IReadOnlyDictionary<string, RangeFilter>? rangeFilters)
     {
         foreach (var partition in partitions)
@@ -117,7 +138,7 @@ internal class ParquetEnumerationStrategy<T> where T : new()
 
             foreach (var file in filesToRead)
             {
-                foreach (var entity in ReadEntities(file, partition, requestedColumns))
+                foreach (var entity in ReadEntities(file, partition, requestedColumns, indexedConstraints, rowPredicates))
                 {
                     yield return entity;
                 }
@@ -128,6 +149,8 @@ internal class ParquetEnumerationStrategy<T> where T : new()
     private async IAsyncEnumerable<T> EnumerateFromParquetParallelAsync(
         IEnumerable<Partition> partitions,
         IReadOnlyCollection<string>? requestedColumns,
+        IReadOnlyList<IndexedPredicateConstraint> indexedConstraints,
+        IReadOnlyList<Func<ParquetRow, bool>> rowPredicates,
         IReadOnlyDictionary<string, RangeFilter>? rangeFilters,
         int degreeOfParallelism,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -168,7 +191,7 @@ internal class ParquetEnumerationStrategy<T> where T : new()
                 {
                     var (partition, file) = job;
 
-                    foreach (var entity in ReadEntities(file, partition, requestedColumns))
+                    foreach (var entity in ReadEntities(file, partition, requestedColumns, indexedConstraints, rowPredicates))
                     {
                         ct.ThrowIfCancellationRequested();
                         await results.Writer.WriteAsync(entity, ct).ConfigureAwait(false);
@@ -227,14 +250,28 @@ internal class ParquetEnumerationStrategy<T> where T : new()
     private IEnumerable<T> ReadEntities(
         ParquetFile file,
         Partition partition,
-        IReadOnlyCollection<string>? requestedColumns)
+        IReadOnlyCollection<string>? requestedColumns,
+        IReadOnlyList<IndexedPredicateConstraint> indexedConstraints,
+        IReadOnlyList<Func<ParquetRow, bool>> rowPredicates)
     {
         var availableColumnNames = GetAvailableColumnNames(file.Path);
-        var columnsToRead = ColumnResolver<T>.ResolveColumnsToRead(_parquetMapper, availableColumnNames, requestedColumns);
+        var columnsToRead = ColumnResolver<T>.ResolveColumnsToRead(_parquetMapper, availableColumnNames, requestedColumns)
+            .ToArray();
 
-        foreach (var row in _parquetReader.ReadRows(file.Path, columnsToRead))
+        var rowGroupsToRead = ResolveRowGroupsToRead(file.Path, indexedConstraints);
+        if (rowGroupsToRead is { Count: 0 })
+            yield break;
+
+        var rows = rowGroupsToRead == null
+            ? _parquetReader.ReadRows(file.Path, columnsToRead)
+            : _parquetReader.ReadRows(file.Path, columnsToRead, rowGroupsToRead);
+
+        foreach (var row in rows)
         {
             var enrichedRow = PartitionRowEnricher.EnrichWithPartitionValues(row, partition.Values);
+            if (!RowMatchesPredicates(rowPredicates, enrichedRow))
+                continue;
+
             yield return _parquetMapper.Map(enrichedRow);
         }
     }
@@ -245,5 +282,97 @@ internal class ParquetEnumerationStrategy<T> where T : new()
             .Select(column => column.Name)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToImmutableArray();
+    }
+
+    private static HashSet<string> GetPredicatePropertyNames(IReadOnlyCollection<QueryPredicate>? predicates)
+    {
+        var propertyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (predicates == null || predicates.Count == 0)
+            return propertyNames;
+
+        foreach (var predicate in predicates)
+        {
+            foreach (var property in predicate.Properties)
+            {
+                propertyNames.Add(property.Name);
+            }
+        }
+
+        return propertyNames;
+    }
+
+
+    private static bool RowMatchesPredicates(
+        IReadOnlyList<Func<ParquetRow, bool>> predicates,
+        ParquetRow row)
+    {
+        return predicates.All(predicate => predicate(row));
+    }
+
+    public bool TryCountUsingIndex(
+        IReadOnlyCollection<QueryPredicate>? predicates,
+        IReadOnlyDictionary<string, RangeFilter>? rangeFilters,
+        out long count)
+    {
+        count = 0;
+        if (predicates == null || predicates.Count == 0)
+            return false;
+
+        var constraints = _indexedPredicateEngine.BuildIndexedPredicateConstraints(predicates, allowWarmup: false);
+        if (constraints.Count != 1)
+            return false;
+
+        var constraint = constraints[0];
+        var partitions = DiscoverPartitions();
+        if (predicates.Count > 0)
+            partitions = FilterPartitions(partitions, predicates);
+
+        foreach (var partition in partitions)
+        {
+            var filesToRead = ApplyStatisticsBasedPruning(partition.Files, rangeFilters);
+            foreach (var file in filesToRead)
+            {
+                foreach (var values in _indexedPredicateEngine.GetRowGroupValues(file.Path, constraint.Definition))
+                {
+                    if (!constraint.TryCountMatches(values, out var groupCount))
+                        return false;
+
+                    count += groupCount;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static IReadOnlyCollection<string>? MergeRequestedColumns(
+        IReadOnlyCollection<string>? requestedColumns,
+        IReadOnlyCollection<string> predicatePropertyNames)
+    {
+        if (requestedColumns == null)
+            return null;
+
+        if (predicatePropertyNames.Count == 0)
+            return requestedColumns;
+
+        var merged = new HashSet<string>(requestedColumns, StringComparer.OrdinalIgnoreCase);
+        foreach (var predicateProperty in predicatePropertyNames)
+        {
+            merged.Add(predicateProperty);
+        }
+
+        return merged;
+    }
+
+    private void ClearIndexedColumnCache()
+    {
+        _indexedPredicateEngine.ClearCache();
+    }
+
+    private IReadOnlySet<int>? ResolveRowGroupsToRead(
+        string filePath,
+        IReadOnlyList<IndexedPredicateConstraint> constraints)
+    {
+        return _indexedPredicateEngine.ResolveRowGroupsToRead(filePath, constraints);
     }
 }

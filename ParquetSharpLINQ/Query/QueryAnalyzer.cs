@@ -70,15 +70,19 @@ internal sealed class QueryAnalyzer
         if (methodCall.Method.Name == "Select" && methodCall.Arguments.Count >= 2)
         {
             var selectorArg = methodCall.Arguments[1];
-            if (selectorArg is UnaryExpression { Operand: LambdaExpression lambda })
-                AnalyzeSelectProjection(lambda);
+            if (selectorArg is UnaryExpression { Operand: LambdaExpression quotedLambda })
+                AnalyzeSelectProjection(quotedLambda);
+            else if (selectorArg is LambdaExpression directLambda)
+                AnalyzeSelectProjection(directLambda);
         }
 
         if (IsPredicateMethod(methodCall.Method.Name) && methodCall.Arguments.Count >= 2)
         {
             var predicateArg = methodCall.Arguments[1];
-            if (predicateArg is UnaryExpression { Operand: LambdaExpression lambda })
-                AnalyzeWhereClause(lambda);
+            if (predicateArg is UnaryExpression { Operand: LambdaExpression quotedLambda })
+                AnalyzeWhereClause(quotedLambda);
+            else if (predicateArg is LambdaExpression directLambda)
+                AnalyzeWhereClause(directLambda);
         }
     }
 
@@ -229,7 +233,7 @@ internal sealed class QueryAnalyzer
             return;
         }
 
-        if (propertyName == null || value is not string)
+        if (value is not string)
             return;
 
         // Evaluate the comparison value (should be 0 for string.Compare patterns)

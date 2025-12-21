@@ -27,4 +27,14 @@ public sealed class ParquetColumnAttribute : Attribute
     /// Default: false (use default(TProp)).
     /// </summary>
     public bool ThrowOnMissingOrNull { get; set; } = false;
+
+    /// <summary>
+    /// When true, the column can be cached/indexed for predicate optimization.
+    /// </summary>
+    public bool Indexed { get; set; }
+
+    /// <summary>
+    /// Optional comparer type used for indexed columns. Must implement IComparer or IComparer&lt;T&gt;.
+    /// </summary>
+    public Type? ComparerType { get; set; }
 }

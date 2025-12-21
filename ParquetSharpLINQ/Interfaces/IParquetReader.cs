@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ParquetSharp;
 using ParquetSharpLINQ.ParquetSharp;
 
@@ -7,5 +8,10 @@ public interface IParquetReader
 {
     IEnumerable<Column> GetColumns(string filePath);
 
-    IEnumerable<ParquetRow> ReadRows(string filePath, IEnumerable<string> columns);
+    IEnumerable<ParquetRow> ReadRows(
+        string filePath,
+        IEnumerable<string> columns,
+        IReadOnlySet<int>? rowGroupsToRead = null);
+
+    IReadOnlyList<ImmutableArray<object?>> ReadColumnValuesByRowGroup(string filePath, string columnName);
 }

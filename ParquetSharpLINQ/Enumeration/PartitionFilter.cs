@@ -1,10 +1,8 @@
 using System.Linq.Expressions;
-using System.Reflection;
-using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Models;
 using ParquetSharpLINQ.Query;
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Reflection;
 
 namespace ParquetSharpLINQ.Enumeration;
 
@@ -18,8 +16,8 @@ internal static partial class PartitionFilter
         if (predicates.Count == 0)
             return partitions;
 
-        var partitionProperties = GetPartitionPropertyNames<T>();
-        var propertyToColumn = BuildPropertyToColumnMap<T>();
+        var partitionProperties = PropertyColumnMapper<T>.GetPartitionPropertyNames();
+        var propertyToColumn = PropertyColumnMapper<T>.GetPropertyToColumnMap();
         var applicablePredicates = predicates
             .Where(p => p.Expression.Parameters.Count == 1)
             .ToArray();
@@ -147,48 +145,6 @@ internal static partial class PartitionFilter
 
             return base.VisitConstant(node);
         }
-    }
-
-    // Cache of partition property names per Type to avoid repeated reflection (immutable)
-    private static readonly ConcurrentDictionary<Type, IImmutableSet<string>> PartitionPropertyNamesCache = new();
-
-    // Cache of property->column name maps per Type to avoid repeated reflection (immutable)
-    private static readonly ConcurrentDictionary<Type, IImmutableDictionary<string, string>> PropertyToColumnMapCache = new();
-
-    private static IImmutableSet<string> GetPartitionPropertyNames<T>() where T : new()
-    {
-        return PartitionPropertyNamesCache.GetOrAdd(typeof(T), t =>
-        {
-            var properties = t.GetProperties(BindingFlags.Instance | BindingFlags.Public);
-            var builder = ImmutableHashSet.CreateBuilder<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var property in properties)
-            {
-                var attr = property.GetCustomAttribute<ParquetColumnAttribute>();
-                if (attr?.IsPartition == true)
-                    builder.Add(property.Name);
-            }
-
-            return builder.ToImmutable();
-        });
-    }
-
-    private static IImmutableDictionary<string, string> BuildPropertyToColumnMap<T>() where T : new()
-    {
-        return PropertyToColumnMapCache.GetOrAdd(typeof(T), t =>
-        {
-            var builder = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.OrdinalIgnoreCase);
-            var properties = t.GetProperties(BindingFlags.Instance | BindingFlags.Public);
-
-            foreach (var property in properties)
-            {
-                var attr = property.GetCustomAttribute<ParquetColumnAttribute>();
-                var columnName = string.IsNullOrWhiteSpace(attr?.Name) ? property.Name : attr.Name;
-                builder[property.Name] = columnName;
-            }
-
-            return builder.ToImmutable();
-        });
     }
 
     private static bool IsPartitionPredicate(QueryPredicate predicate, IImmutableSet<string> partitionProperties)

@@ -1,4 +1,4 @@
-using Azure;
+using System.Collections.Immutable;
 using Azure.Storage.Blobs;
 using ParquetSharp;
 using ParquetSharpLINQ.Interfaces;
@@ -37,15 +37,24 @@ public sealed class AzureBlobParquetReader : IParquetReader
         }
     }
 
-    public IEnumerable<ParquetRow> ReadRows(string filePath, IEnumerable<string> columns)
+    public IEnumerable<ParquetRow> ReadRows(
+        string filePath,
+        IEnumerable<string> columns,
+        IReadOnlySet<int>? rowGroupsToRead)
     {
         ArgumentNullException.ThrowIfNull(columns);
 
         using var stream = OpenStream(filePath);
-        foreach (var row in ParquetStreamReader.ReadRowsFromStream(stream, columns))
+        foreach (var row in ParquetStreamReader.ReadRowsFromStream(stream, columns, rowGroupsToRead))
         {
             yield return row;
         }
+    }
+
+    public IReadOnlyList<ImmutableArray<object?>> ReadColumnValuesByRowGroup(string filePath, string columnName)
+    {
+        using var stream = OpenStream(filePath);
+        return ParquetStreamReader.ReadColumnValuesByRowGroupFromStream(stream, columnName);
     }
     
     private Stream? OpenStream(string blobPath)

@@ -40,6 +40,9 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
         // Analyze the query to extract optimization hints
         var analysis = QueryAnalyzer.Analyze(expression);
 
+        if (TryExecuteCountUsingIndex(expression, analysis, out TResult optimizedResult))
+            return optimizedResult;
+
         // Execute query using enumeration strategy with statistics-based pruning
         var sourceQueryable = _enumerationStrategy.Enumerate(
             analysis.Predicates.Count > 0 ? analysis.Predicates : null,
@@ -49,6 +52,30 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
 
         var rewritten = ParquetExpressionReplacer<T>.Replace(expression, sourceQueryable);
         return sourceQueryable.Provider.Execute<TResult>(rewritten);
+    }
+
+    private bool TryExecuteCountUsingIndex<TResult>(Expression expression, QueryAnalyzer analysis, out TResult result)
+    {
+        result = default!;
+
+        if (expression is not MethodCallExpression methodCall)
+            return false;
+
+        var isCount = methodCall.Method.Name is "Count" or "LongCount";
+        if (!isCount)
+            return false;
+
+        if (!_enumerationStrategy.TryCountUsingIndex(analysis.Predicates, analysis.RangeFilters, out var count))
+            return false;
+
+        if (methodCall.Method.Name == "LongCount")
+        {
+            result = (TResult)(object)count;
+            return true;
+        }
+
+        result = (TResult)(object)checked((int)count);
+        return true;
     }
 
     private static Type GetElementType(Type sequenceType)

@@ -37,7 +37,10 @@ public static class ParquetStreamReader
     /// <summary>
     /// Reads rows from a stream with optional column filtering.
     /// </summary>
-    public static IEnumerable<ParquetRow> ReadRowsFromStream(Stream? stream, IEnumerable<string> columns)
+    public static IEnumerable<ParquetRow> ReadRowsFromStream(
+        Stream? stream,
+        IEnumerable<string> columns,
+        IReadOnlySet<int>? rowGroupsToRead = null)
     {
         if (stream == null)
         {
@@ -54,11 +57,49 @@ public static class ParquetStreamReader
         var numRowGroups = reader.FileMetaData.NumRowGroups;
         for (var rowGroupIndex = 0; rowGroupIndex < numRowGroups; rowGroupIndex++)
         {
+            if (rowGroupsToRead != null && !rowGroupsToRead.Contains(rowGroupIndex))
+                continue;
+
             foreach (var row in ParquetRowBuilder.ReadRowGroup(reader, rowGroupIndex, columnsToRead))
             {
                 yield return row;
             }
         }
     }
-}
 
+    public static ImmutableArray<ImmutableArray<object?>> ReadColumnValuesByRowGroupFromStream(
+        Stream? stream,
+        string columnName)
+    {
+        if (stream == null)
+        {
+            return ImmutableArray<ImmutableArray<object?>>.Empty;
+        }
+
+        stream.Position = 0;
+        using var reader = new ParquetFileReader(stream);
+        var schema = reader.FileMetaData.Schema ??
+                     throw new InvalidOperationException("Unable to read Parquet schema.");
+
+        var handles = ParquetColumnMapper.GetRequestedColumns(new[] { columnName }, schema);
+        if (handles.Count == 0)
+        {
+            throw new InvalidOperationException($"Column '{columnName}' not found in Parquet schema.");
+        }
+
+        var handle = handles[0];
+
+        var rowGroupCount = reader.FileMetaData.NumRowGroups;
+        var builder = ImmutableArray.CreateBuilder<ImmutableArray<object?>>(rowGroupCount);
+
+        for (var rowGroupIndex = 0; rowGroupIndex < rowGroupCount; rowGroupIndex++)
+        {
+            using var rowGroup = reader.RowGroup(rowGroupIndex);
+            var numRows = checked((int)rowGroup.MetaData.NumRows);
+            var values = ParquetColumnReader.ReadColumn(rowGroup, handle, numRows);
+            builder.Add(values);
+        }
+
+        return builder.ToImmutable();
+    }
+}
