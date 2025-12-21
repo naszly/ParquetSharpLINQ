@@ -15,6 +15,7 @@ A high-performance LINQ provider for querying Hive-partitioned and Delta Lake Pa
 - **Delta Lake Support** - Automatic transaction log reading
 - **Partition Pruning** - Only scans matching partitions
 - **Column Projection** - Only reads requested columns
+- **Indexed Column Predicates** - Row-group pruning for indexed properties
 - **Type Safe** - Compile-time validation
 - **Cross-Platform** - Works on Windows and Linux
 - **Azure Blob Storage** - Stream directly from cloud storage
@@ -103,6 +104,17 @@ Benchmark results with 180 partitions (900K records):
 
 Throughput: ~200K records/sec (60K records in ~300ms)
 
+Indexed column benchmarks:
+
+| Method                                   | Mean         | Error       | StdDev     | Gen0         | Gen1        | Allocated     |
+|----------------------------------------- |-------------:|------------:|-----------:|-------------:|------------:|--------------:|
+| 'Indexed column count'                   |     8.295 ms |   0.7685 ms |  0.1996 ms |      15.6250 |           - |     105.08 KB |
+| 'Non-indexed column count'               | 5,744.484 ms | 123.5699 ms | 32.0907 ms | 1542000.0000 | 841000.0000 |  7992138.3 KB |
+| 'Indexed column filter'                  |   333.455 ms |   4.6755 ms |  1.2142 ms |   69500.0000 |  34000.0000 |  385004.82 KB |
+| 'Non-indexed column filter'              | 5,713.755 ms |  24.9120 ms |  6.4696 ms | 1545000.0000 | 865000.0000 | 7992645.34 KB |
+| 'Indexed column filter + projection'     |   222.114 ms |   9.5543 ms |  1.4785 ms |   54000.0000 |  17333.3333 |  238107.39 KB |
+| 'Non-indexed column filter + projection' | 3,356.356 ms | 129.0821 ms | 33.5222 ms | 1069000.0000 | 103000.0000 | 4454680.27 KB |
+
 ## Directory Structure
 
 Hive-style partitioning:
@@ -149,6 +161,28 @@ var summary = table
     .Select(s => new { s.Id, s.ProductName })
     .ToList();
 ```
+
+### Indexed Column Predicates
+
+Mark properties as indexed to enable fast row-group pruning for `Count` and `Where` predicates.
+
+```csharp
+using ParquetSharpLINQ.Attributes;
+
+public class SalesRecord
+{
+    [ParquetColumn("id", Indexed = true)]
+    public long Id { get; set; }
+
+    [ParquetColumn("product_name", Indexed = true, ComparerType = typeof(StringComparer))]
+    public string ProductName { get; set; }
+}
+```
+
+Notes:
+- Indexing uses values read per row group and an in-memory cache per column/file.
+- `ComparerType` is optional; if omitted, the property type must implement `IComparable` or `IComparable<T>`.
+- Currently optimized constraints: equality, inequality, range comparisons, and `string.StartsWith` with `StringComparison.Ordinal`.
 
 ### Automatic Type Conversion
 
@@ -218,7 +252,7 @@ See [ParquetSharpLINQ.Benchmarks/README.md](ParquetSharpLINQ.Benchmarks/README.m
   - `ParquetTable<T>` - Main queryable interface (implements `IQueryable<T>`)
   - `ParquetTableFactory<T>` - Factory for creating ParquetTable instances
   - `ParquetQueryProvider<T>` - LINQ expression tree visitor and query optimizer
-  - `ParquetEnumerationStrategy<T>` - Executes queries with partition pruning and column projection
+  - `ParquetEnumerationStrategy<T>` - Executes queries with partition pruning, indexing, and column projection
   - `IPartitionDiscoveryStrategy` - Pluggable partition discovery interface
   - `IParquetReader` - Pluggable Parquet reading interface
   - `FileSystemPartitionDiscovery` - Discovers Hive partitions and Delta logs from local filesystem
