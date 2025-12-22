@@ -3,6 +3,7 @@ using ParquetSharp;
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.ParquetSharp;
+using static ParquetSharpLINQ.Tests.Helpers.ParquetRowFactory;
 
 namespace ParquetSharpLINQ.Tests.Unit.Query;
 
@@ -19,7 +20,10 @@ public class LinqQueryTests
         _testPath = Path.Combine(Path.GetTempPath(), $"ParquetLinqTest_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testPath);
 
-        var parquetFile = Path.Combine(_testPath, "data.parquet");
+        var partitionPath = Path.Combine(_testPath, "year=2024", "region=us");
+        Directory.CreateDirectory(partitionPath);
+
+        var parquetFile = Path.Combine(partitionPath, "data.parquet");
         File.WriteAllText(parquetFile, "dummy");
 
         SetupMockReader();
@@ -49,12 +53,30 @@ public class LinqQueryTests
 
         var rows = new List<ParquetRow>
         {
-            new(["id", "name", "amount", "count", "is_active", "created_date"],
-                [1L, "Alice", 100.50m, 5, true, new DateTime(2024, 1, 1)]),
-            new(["id", "name", "amount", "count", "is_active", "created_date"],
-                [2L, "Bob", 250.75m, 10, true, new DateTime(2024, 2, 1)]),
-            new(["id", "name", "amount", "count", "is_active", "created_date"],
-                [3L, "Charlie", 75.25m, 3, false, new DateTime(2024, 3, 1)])
+            Create(
+                Column("id", 1L),
+                Column("name", "Alice"),
+                Column("amount", 100.50m),
+                Column("count", 5),
+                Column("is_active", true),
+                Column("created_date", new DateTime(2024, 1, 1))
+            ),
+            Create(
+                Column("id", 2L),
+                Column("name", "Bob"),
+                Column("amount", 250.75m),
+                Column("count", 10),
+                Column("is_active", true),
+                Column("created_date", new DateTime(2024, 2, 1))
+            ),
+            Create(
+                Column("id", 3L),
+                Column("name", "Charlie"),
+                Column("amount", 75.25m),
+                Column("count", 3),
+                Column("is_active", false),
+                Column("created_date", new DateTime(2024, 3, 1))
+            )
         };
         _mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(rows);
     }

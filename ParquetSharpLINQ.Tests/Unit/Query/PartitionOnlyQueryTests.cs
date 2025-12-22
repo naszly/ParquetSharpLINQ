@@ -4,6 +4,7 @@ using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.ParquetSharp;
+using static ParquetSharpLINQ.Tests.Helpers.ParquetRowFactory;
 
 namespace ParquetSharpLINQ.Tests.Unit.Query;
 
@@ -53,7 +54,10 @@ public class PartitionOnlyQueryTests
                 filesWereRead = true;
                 return new List<ParquetRow>
                 {
-                    new(["id", "name"], [1L, "Test"])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Test")
+                    )
                 };
             });
 
@@ -107,7 +111,10 @@ public class PartitionOnlyQueryTests
             {
                 return new List<ParquetRow>
                 {
-                    new(["id", "name"], [1L, "Test"])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Test")
+                    )
                 };
             });
 
@@ -199,4 +206,3 @@ public class EntityWithMultiplePartitions
     [ParquetColumn("region", IsPartition = true)]
     public string Region { get; set; } = string.Empty;
 }
-

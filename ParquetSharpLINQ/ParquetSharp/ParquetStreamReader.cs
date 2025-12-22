@@ -67,13 +67,13 @@ public static class ParquetStreamReader
         }
     }
 
-    public static ImmutableArray<ImmutableArray<object?>> ReadColumnValuesByRowGroupFromStream(
+    public static ImmutableArray<ImmutableArray<T>> ReadColumnValuesByRowGroupFromStream<T>(
         Stream? stream,
         string columnName)
     {
         if (stream == null)
         {
-            return ImmutableArray<ImmutableArray<object?>>.Empty;
+            return ImmutableArray<ImmutableArray<T>>.Empty;
         }
 
         stream.Position = 0;
@@ -90,13 +90,13 @@ public static class ParquetStreamReader
         var handle = handles[0];
 
         var rowGroupCount = reader.FileMetaData.NumRowGroups;
-        var builder = ImmutableArray.CreateBuilder<ImmutableArray<object?>>(rowGroupCount);
+        var builder = ImmutableArray.CreateBuilder<ImmutableArray<T>>(rowGroupCount);
 
         for (var rowGroupIndex = 0; rowGroupIndex < rowGroupCount; rowGroupIndex++)
         {
             using var rowGroup = reader.RowGroup(rowGroupIndex);
             var numRows = checked((int)rowGroup.MetaData.NumRows);
-            var values = ParquetColumnReader.ReadColumn(rowGroup, handle, numRows);
+            var values = ParquetColumnReader.ReadColumn<T>(rowGroup, handle, numRows);
             builder.Add(values);
         }
 

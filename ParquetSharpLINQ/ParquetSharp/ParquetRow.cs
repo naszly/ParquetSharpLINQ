@@ -3,16 +3,25 @@ namespace ParquetSharpLINQ.ParquetSharp;
 public readonly struct ParquetRow
 {
     private readonly string[] _columnNames;
-    private readonly object?[] _values;
+    private readonly IColumnBuffer[] _buffers;
+    private readonly int _rowIndex;
 
-    public ParquetRow(string[] columnNames, object?[] values)
+    internal ParquetRow(string[] columnNames, IColumnBuffer[] buffers, int rowIndex)
     {
         _columnNames = columnNames;
-        _values = values;
+        _buffers = buffers;
+        _rowIndex = rowIndex;
     }
 
-    public object? this[int index] => _values[index];
-    public int ColumnCount => _values.Length;
+    public int ColumnCount => _buffers.Length;
     public ReadOnlySpan<string> ColumnNames => _columnNames;
-    public ReadOnlySpan<object?> Values => _values;
+    
+    internal T GetValue<T>(int index)
+    {
+        return _buffers[index].GetValue<T>(_rowIndex);
+    }
+
+    internal IColumnBuffer[] Buffers => _buffers;
+
+    internal int RowIndex => _rowIndex;
 }

@@ -55,22 +55,39 @@ internal sealed class IndexedColumnIndex
     }
 }
 
-internal sealed class RowGroupIndex
+public sealed class RowGroupIndex
 {
-    public RowGroupIndex(IReadOnlyDictionary<int, SortedValueArray> rowGroups)
+    public RowGroupIndex(IReadOnlyDictionary<int, RowGroupValues> rowGroups)
     {
         RowGroups = rowGroups;
     }
 
-    public IReadOnlyDictionary<int, SortedValueArray> RowGroups { get; }
+    public IReadOnlyDictionary<int, RowGroupValues> RowGroups { get; }
 }
 
-internal sealed class SortedValueArray
+public abstract class RowGroupValues
 {
-    private readonly object?[] _values;
-    private readonly IComparer<object?> _comparer;
+    public abstract Type ValueType { get; }
+}
 
-    public SortedValueArray(IEnumerable<object?> values, IComparer<object?> comparer)
+public sealed class RowGroupValues<T> : RowGroupValues
+{
+    public RowGroupValues(SortedValueArray<T> values)
+    {
+        Values = values;
+    }
+
+    public override Type ValueType => typeof(T);
+
+    public SortedValueArray<T> Values { get; }
+}
+
+public sealed class SortedValueArray<T>
+{
+    private readonly T[] _values;
+    private readonly IComparer<T?> _comparer;
+
+    public SortedValueArray(IEnumerable<T> values, IComparer<T> comparer)
     {
         _comparer = comparer;
         _values = values.ToArray();
@@ -79,16 +96,16 @@ internal sealed class SortedValueArray
 
     public int Count => _values.Length;
 
-    public object? Min => _values.Length > 0 ? _values[0] : null;
+    public T Min => _values[0];
 
-    public object? Max => _values.Length > 0 ? _values[^1] : null;
+    public T Max => _values[^1];
 
-    public bool Contains(object? value)
+    public bool Contains(T? value)
     {
         return BinarySearch(value) >= 0;
     }
 
-    public bool HasAnyValueNotEqual(object? value)
+    public bool HasAnyValueNotEqual(T? value)
     {
         if (_values.Length == 0)
             return false;
@@ -96,19 +113,20 @@ internal sealed class SortedValueArray
         return _comparer.Compare(Min, value) != 0 || _comparer.Compare(Max, value) != 0;
     }
 
-    public bool IntersectsRange(object? minValue, bool minInclusive, object? maxValue, bool maxInclusive)
+    public bool IntersectsRange(T? minValue, bool hasMin, bool minInclusive, T? maxValue, bool hasMax,
+        bool maxInclusive)
     {
         if (_values.Length == 0)
             return false;
 
-        if (minValue != null)
+        if (hasMin)
         {
             var maxCompare = _comparer.Compare(Max, minValue);
             if (maxCompare < 0 || (maxCompare == 0 && !minInclusive))
                 return false;
         }
 
-        if (maxValue != null)
+        if (hasMax)
         {
             var minCompare = _comparer.Compare(Min, maxValue);
             if (minCompare > 0 || (minCompare == 0 && !maxInclusive))
@@ -118,7 +136,7 @@ internal sealed class SortedValueArray
         return true;
     }
 
-    public int CountEquals(object? value)
+    public int CountEquals(T? value)
     {
         if (_values.Length == 0)
             return 0;
@@ -128,22 +146,23 @@ internal sealed class SortedValueArray
         return Math.Max(0, upper - lower);
     }
 
-    public int CountInRange(object? minValue, bool minInclusive, object? maxValue, bool maxInclusive)
+    public int CountInRange(T? minValue, bool hasMin, bool minInclusive, T? maxValue, bool hasMax,
+        bool maxInclusive)
     {
         if (_values.Length == 0)
             return 0;
 
-        var lower = minValue == null ? 0 : LowerBound(minValue, minInclusive);
-        var upper = maxValue == null ? _values.Length : UpperBoundExclusive(maxValue, maxInclusive);
+        var lower = hasMin ? LowerBound(minValue, minInclusive) : 0;
+        var upper = hasMax ? UpperBoundExclusive(maxValue, maxInclusive) : _values.Length;
         return Math.Max(0, upper - lower);
     }
 
-    private int BinarySearch(object? value)
+    private int BinarySearch(T? value)
     {
         return Array.BinarySearch(_values, value, _comparer);
     }
 
-    private int LowerBound(object? value, bool inclusive)
+    private int LowerBound(T? value, bool inclusive)
     {
         var lo = 0;
         var hi = _values.Length;
@@ -164,7 +183,7 @@ internal sealed class SortedValueArray
         return lo;
     }
 
-    private int UpperBoundExclusive(object? value, bool inclusive)
+    private int UpperBoundExclusive(T? value, bool inclusive)
     {
         var lo = 0;
         var hi = _values.Length;

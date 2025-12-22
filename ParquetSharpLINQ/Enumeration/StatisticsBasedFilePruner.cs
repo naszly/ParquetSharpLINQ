@@ -69,23 +69,31 @@ internal static class StatisticsBasedFilePruner
 
     private static bool AllValuesAreBelowFilterMinimum(ParquetColumnStatistics stats, RangeFilter filter)
     {
+        var min = filter.Min;
+        if (min == null)
+            return false;
+
         return CompareStatisticAgainstBoundary(
-            stats.MaxRaw, 
-            filter.Min!, 
-            filter.MinInclusive, 
+            stats.MaxRaw,
+            min,
+            filter.MinInclusive,
             isUpperBoundCheck: false,
-            stats.PhysicalType, 
+            stats.PhysicalType,
             stats.LogicalType);
     }
 
     private static bool AllValuesAreAboveFilterMaximum(ParquetColumnStatistics stats, RangeFilter filter)
     {
+        var max = filter.Max;
+        if (max == null)
+            return false;
+
         return CompareStatisticAgainstBoundary(
-            stats.MinRaw, 
-            filter.Max!, 
-            filter.MaxInclusive, 
+            stats.MinRaw,
+            max,
+            filter.MaxInclusive,
             isUpperBoundCheck: true,
-            stats.PhysicalType, 
+            stats.PhysicalType,
             stats.LogicalType);
     }
 
@@ -110,4 +118,3 @@ internal static class StatisticsBasedFilePruner
             : comparison.Value < 0 || (comparison.Value == 0 && !isInclusive);
     }
 }
-

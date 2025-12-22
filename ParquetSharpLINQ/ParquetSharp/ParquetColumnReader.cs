@@ -8,126 +8,74 @@ namespace ParquetSharpLINQ.ParquetSharp;
 /// </summary>
 internal static class ParquetColumnReader
 {
-    private const string SupportedTypesMessage = 
-        "Supported types: bool, sbyte, byte, short, ushort, int, uint, long, ulong, float, double, decimal, string, DateTime, Date, DateOnly, TimeSpan, byte[]";
-
     /// <summary>
-    /// Reads a single column from a row group and returns it as an immutable array of objects.
+    /// Reads a single column from a row group and returns it as a typed immutable array.
     /// </summary>
-    public static ImmutableArray<object?> ReadColumn(
+    public static ImmutableArray<T> ReadColumn<T>(
         RowGroupReader rowGroupReader,
         ParquetColumnMapper.ColumnHandle handle,
         int numRows)
     {
         using var columnReader = rowGroupReader.Column(handle.Index);
-        if (numRows == 0) return [];
+        if (numRows == 0)
+            return ImmutableArray<T>.Empty;
 
-        var targetType = ParquetTypeResolver.ResolveClrType(handle.Descriptor);
-        if (ParquetTypeResolver.ShouldUseNullable(handle.Descriptor) && targetType.IsValueType &&
-            Nullable.GetUnderlyingType(targetType) == null)
-        {
-            targetType = typeof(Nullable<>).MakeGenericType(targetType);
-        }
-
-        return ReadColumnData(columnReader, targetType, numRows);
+        var values = columnReader.LogicalReader<T>().ReadAll(numRows);
+        return ImmutableArray.CreateRange(values);
     }
 
-    private static ImmutableArray<object?> ReadColumnData(ColumnReader columnReader, Type targetType, int numRows)
-    {
-        var underlyingType = Nullable.GetUnderlyingType(targetType);
-        
-        if (underlyingType != null)
-        {
-            return underlyingType switch
-            {
-                _ when underlyingType == typeof(bool) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<bool?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(sbyte) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<sbyte?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(byte) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<byte?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(short) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<short?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(ushort) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<ushort?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(int) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<int?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(uint) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<uint?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(long) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<long?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(ulong) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<ulong?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(float) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<float?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(double) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<double?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(decimal) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<decimal?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(Date) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<Date?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(DateTime) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<DateTime?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(DateOnly) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<DateOnly?>().ReadAll(numRows)),
-                _ when underlyingType == typeof(TimeSpan) =>
-                    ConvertToObjectArray(columnReader.LogicalReader<TimeSpan?>().ReadAll(numRows)),
-                _ => throw new NotSupportedException($"Reading nullable type {targetType} is not supported. {SupportedTypesMessage}")
-            };
-        }
+    // A small generic helper that builds the factory which reads and wraps the column values
+    private static Func<RowGroupReader, ParquetColumnMapper.ColumnHandle, int, IColumnBuffer> CreateFactory<T>()
+        => (rowGroupReader, handle, numRows) => new ColumnBuffer<T>(ReadColumn<T>(rowGroupReader, handle, numRows));
 
-        return targetType switch
-        {
-            _ when targetType == typeof(bool) =>
-                ConvertToObjectArray(columnReader.LogicalReader<bool>().ReadAll(numRows)),
-            _ when targetType == typeof(sbyte) =>
-                ConvertToObjectArray(columnReader.LogicalReader<sbyte>().ReadAll(numRows)),
-            _ when targetType == typeof(byte) =>
-                ConvertToObjectArray(columnReader.LogicalReader<byte>().ReadAll(numRows)),
-            _ when targetType == typeof(short) =>
-                ConvertToObjectArray(columnReader.LogicalReader<short>().ReadAll(numRows)),
-            _ when targetType == typeof(ushort) =>
-                ConvertToObjectArray(columnReader.LogicalReader<ushort>().ReadAll(numRows)),
-            _ when targetType == typeof(int) =>
-                ConvertToObjectArray(columnReader.LogicalReader<int>().ReadAll(numRows)),
-            _ when targetType == typeof(uint) =>
-                ConvertToObjectArray(columnReader.LogicalReader<uint>().ReadAll(numRows)),
-            _ when targetType == typeof(long) =>
-                ConvertToObjectArray(columnReader.LogicalReader<long>().ReadAll(numRows)),
-            _ when targetType == typeof(ulong) =>
-                ConvertToObjectArray(columnReader.LogicalReader<ulong>().ReadAll(numRows)),
-            _ when targetType == typeof(float) =>
-                ConvertToObjectArray(columnReader.LogicalReader<float>().ReadAll(numRows)),
-            _ when targetType == typeof(double) =>
-                ConvertToObjectArray(columnReader.LogicalReader<double>().ReadAll(numRows)),
-            _ when targetType == typeof(decimal) =>
-                ConvertToObjectArray(columnReader.LogicalReader<decimal>().ReadAll(numRows)),
-            _ when targetType == typeof(string) =>
-                ConvertToObjectArray(columnReader.LogicalReader<string>().ReadAll(numRows)),
-            _ when targetType == typeof(Date) =>
-                ConvertToObjectArray(columnReader.LogicalReader<Date>().ReadAll(numRows)),
-            _ when targetType == typeof(DateTime) =>
-                ConvertToObjectArray(columnReader.LogicalReader<DateTime>().ReadAll(numRows)),
-            _ when targetType == typeof(DateOnly) =>
-                ConvertToObjectArray(columnReader.LogicalReader<DateOnly>().ReadAll(numRows)),
-            _ when targetType == typeof(TimeSpan) =>
-                ConvertToObjectArray(columnReader.LogicalReader<TimeSpan>().ReadAll(numRows)),
-            _ when targetType == typeof(byte[]) =>
-                ConvertToObjectArray(columnReader.LogicalReader<byte[]>().ReadAll(numRows)),
-            _ => throw new NotSupportedException($"Reading type {targetType} is not supported. {SupportedTypesMessage}")
-        };
-    }
-
-    private static ImmutableArray<object?> ConvertToObjectArray<T>(T[] typedArray)
+    // Centralized mapping from CLR type to a factory that produces the appropriate IColumnBuffer
+    private static readonly IReadOnlyDictionary<Type, Func<RowGroupReader, ParquetColumnMapper.ColumnHandle, int, IColumnBuffer>> ColumnBufferFactories
+        = new Dictionary<Type, Func<RowGroupReader, ParquetColumnMapper.ColumnHandle, int, IColumnBuffer>>
     {
-        var builder = ImmutableArray.CreateBuilder<object?>(typedArray.Length);
-        builder.Count = typedArray.Length;
-        
-        for (var i = 0; i < typedArray.Length; i++)
-        {
-            builder[i] = typedArray[i];
-        }
-        
-        return builder.MoveToImmutable();
+        { typeof(bool), CreateFactory<bool>() },
+        { typeof(bool?), CreateFactory<bool?>() },
+        { typeof(sbyte), CreateFactory<sbyte>() },
+        { typeof(sbyte?), CreateFactory<sbyte?>() },
+        { typeof(byte), CreateFactory<byte>() },
+        { typeof(byte?), CreateFactory<byte?>() },
+        { typeof(short), CreateFactory<short>() },
+        { typeof(short?), CreateFactory<short?>() },
+        { typeof(ushort), CreateFactory<ushort>() },
+        { typeof(ushort?), CreateFactory<ushort?>() },
+        { typeof(int), CreateFactory<int>() },
+        { typeof(int?), CreateFactory<int?>() },
+        { typeof(uint), CreateFactory<uint>() },
+        { typeof(uint?), CreateFactory<uint?>() },
+        { typeof(long), CreateFactory<long>() },
+        { typeof(long?), CreateFactory<long?>() },
+        { typeof(ulong), CreateFactory<ulong>() },
+        { typeof(ulong?), CreateFactory<ulong?>() },
+        { typeof(float), CreateFactory<float>() },
+        { typeof(float?), CreateFactory<float?>() },
+        { typeof(double), CreateFactory<double>() },
+        { typeof(double?), CreateFactory<double?>() },
+        { typeof(decimal), CreateFactory<decimal>() },
+        { typeof(decimal?), CreateFactory<decimal?>() },
+        { typeof(string), CreateFactory<string>() },
+        { typeof(Date), CreateFactory<Date>() },
+        { typeof(Date?), CreateFactory<Date?>() },
+        { typeof(DateTime), CreateFactory<DateTime>() },
+        { typeof(DateTime?), CreateFactory<DateTime?>() },
+        { typeof(TimeSpan), CreateFactory<TimeSpan>() },
+        { typeof(TimeSpan?), CreateFactory<TimeSpan?>() },
+        { typeof(DateOnly), CreateFactory<DateOnly>() },
+        { typeof(DateOnly?), CreateFactory<DateOnly?>() },
+        { typeof(byte[]), CreateFactory<byte[]>() }
+    };
+
+    public static IColumnBuffer ReadColumnBuffer(
+        RowGroupReader rowGroupReader,
+        ParquetColumnMapper.ColumnHandle handle,
+        int numRows,
+        Type targetType)
+    {
+        return ColumnBufferFactories.TryGetValue(targetType, out var factory) 
+            ? factory(rowGroupReader, handle, numRows) 
+            : throw new NotSupportedException($"Reading type {targetType.FullName} is not supported.");
     }
 }

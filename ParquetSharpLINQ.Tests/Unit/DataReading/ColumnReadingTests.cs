@@ -4,6 +4,7 @@ using NSubstitute;
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.ParquetSharp;
+using static ParquetSharpLINQ.Tests.Helpers.ParquetRowFactory;
 
 namespace ParquetSharpLINQ.Tests.Unit.DataReading;
 
@@ -46,8 +47,16 @@ public class ColumnReadingTests
                 // Return mock data
                 return new List<ParquetRow>
                 {
-                    new(["id", "name", "age"], [1L, "Alice", 30]),
-                    new(["id", "name", "age"], [2L, "Bob", 25])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Alice"),
+                        Column("age", 30)
+                    ),
+                    Create(
+                        Column("id", 2L),
+                        Column("name", "Bob"),
+                        Column("age", 25)
+                    )
                 };
             });
 
@@ -104,8 +113,16 @@ public class ColumnReadingTests
                 requestedColumns = callInfo.Arg<IEnumerable<string>>().ToList();
                 return new List<ParquetRow>
                 {
-                    new(["id", "name", "age"], [1L, "Alice", 30]),
-                    new(["id", "name", "age"], [2L, "Bob", 25])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Alice"),
+                        Column("age", 30)
+                    ),
+                    Create(
+                        Column("id", 2L),
+                        Column("name", "Bob"),
+                        Column("age", 25)
+                    )
                 };
             });
 
@@ -155,4 +172,3 @@ public class PartialEntity
     
     // Note: extra_column_1 and extra_column_2 are NOT mapped here
 }
-

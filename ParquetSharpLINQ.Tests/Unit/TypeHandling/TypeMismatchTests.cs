@@ -9,7 +9,7 @@ namespace ParquetSharpLINQ.Tests.Unit.TypeHandling;
 public class TypeMismatchTests
 {
     [Test]
-    public void ByteProperty_WithValueOver255_ThrowsOverflowException()
+    public void ByteProperty_WithValueOver255_ThrowsInvalidOperationException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetTypeMismatch_{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
@@ -27,7 +27,7 @@ public class TypeMismatchTests
 
             using var table = ParquetTable<EntityWithByte>.Factory.FromFileSystem(tempDir);
             
-            Assert.Throws<OverflowException>(() => table.ToList());
+            Assert.Throws<InvalidOperationException>(() => table.ToList());
         }
         finally
         {
@@ -39,7 +39,7 @@ public class TypeMismatchTests
     }
 
     [Test]
-    public void ByteProperty_WithNegativeValue_ThrowsOverflowException()
+    public void ByteProperty_WithNegativeValue_ThrowsInvalidOperationException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetTypeMismatch_{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
@@ -57,7 +57,7 @@ public class TypeMismatchTests
 
             using var table = ParquetTable<EntityWithByte>.Factory.FromFileSystem(tempDir);
             
-            Assert.Throws<OverflowException>(() => table.ToList());
+            Assert.Throws<InvalidOperationException>(() => table.ToList());
         }
         finally
         {
@@ -69,7 +69,7 @@ public class TypeMismatchTests
     }
 
     [Test]
-    public void ShortProperty_WithValueOver32767_ThrowsOverflowException()
+    public void ShortProperty_WithValueOver32767_ThrowsInvalidOperationException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetTypeMismatch_{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
@@ -87,7 +87,7 @@ public class TypeMismatchTests
 
             using var table = ParquetTable<EntityWithShort>.Factory.FromFileSystem(tempDir);
             
-            Assert.Throws<OverflowException>(() => table.ToList());
+            Assert.Throws<InvalidOperationException>(() => table.ToList());
         }
         finally
         {
@@ -99,7 +99,7 @@ public class TypeMismatchTests
     }
 
     [Test]
-    public void ByteProperty_WithValidValue_ConvertsSuccessfully()
+    public void ByteProperty_WithValidValue_ThrowsInvalidOperationException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetTypeMismatch_{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
@@ -116,10 +116,7 @@ public class TypeMismatchTests
             }
 
             using var table = ParquetTable<EntityWithByte>.Factory.FromFileSystem(tempDir);
-            var results = table.ToList();
-            
-            Assert.That(results, Has.Count.EqualTo(1));
-            Assert.That(results[0].Value, Is.EqualTo(200));
+            Assert.Throws<InvalidOperationException>(() => table.ToList());
         }
         finally
         {
@@ -193,7 +190,7 @@ public class TypeMismatchTests
     }
 
     [Test]
-    public void IntProperty_WithValueOverInt32Max_ThrowsOverflowException()
+    public void IntProperty_WithValueOverInt32Max_ThrowsInvalidOperationException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetTypeMismatch_{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
@@ -211,7 +208,7 @@ public class TypeMismatchTests
 
             using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
             
-            Assert.Throws<OverflowException>(() => table.ToList());
+            Assert.Throws<InvalidOperationException>(() => table.ToList());
         }
         finally
         {
@@ -223,7 +220,7 @@ public class TypeMismatchTests
     }
 
     [Test]
-    public void IntProperty_WithNegativeValueBelowInt32Min_ThrowsOverflowException()
+    public void IntProperty_WithNegativeValueBelowInt32Min_ThrowsInvalidOperationException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetTypeMismatch_{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
@@ -241,7 +238,7 @@ public class TypeMismatchTests
 
             using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
             
-            Assert.Throws<OverflowException>(() => table.ToList());
+            Assert.Throws<InvalidOperationException>(() => table.ToList());
         }
         finally
         {
@@ -253,7 +250,7 @@ public class TypeMismatchTests
     }
 
     [Test]
-    public void IntProperty_WithValidLongValue_ConvertsSuccessfully()
+    public void IntProperty_WithValidLongValue_ThrowsInvalidOperationException()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ParquetTypeMismatch_{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
@@ -270,10 +267,7 @@ public class TypeMismatchTests
             }
 
             using var table = ParquetTable<EntityWithInt>.Factory.FromFileSystem(tempDir);
-            var results = table.ToList();
-            
-            Assert.That(results, Has.Count.EqualTo(1));
-            Assert.That(results[0].Value, Is.EqualTo(1000000));
+            Assert.Throws<InvalidOperationException>(() => table.ToList());
         }
         finally
         {

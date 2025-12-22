@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using ParquetSharpLINQ.Attributes;
 
 namespace ParquetSharpLINQ.Query;
 
@@ -9,12 +10,17 @@ namespace ParquetSharpLINQ.Query;
 internal sealed class QueryAnalyzer
 {
     /// <summary>
-    /// Columns explicitly requested via SELECT projection.
-    /// - null: No SELECT projection found, read all entity columns
-    /// - non-null: Explicit SELECT projection, read only these specific columns
+    /// Columns explicitly selected via SELECT projection.
+    /// - null: No SELECT projection found, map all entity columns
+    /// - non-null: Explicit SELECT projection, map only these specific columns
     /// </summary>
-    public HashSet<string>? RequestedColumns { get; private set; }
-    
+    public HashSet<string>? SelectedColumns { get; private set; }
+
+    /// <summary>
+    /// Columns referenced anywhere in the query (predicates, group keys, order keys, projections).
+    /// </summary>
+    public HashSet<string> AccessedColumns { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public List<QueryPredicate> Predicates { get; } = [];
     
     /// <summary>
@@ -24,6 +30,7 @@ internal sealed class QueryAnalyzer
     public Dictionary<string, RangeFilter> RangeFilters { get; } = new(StringComparer.OrdinalIgnoreCase);
     
     private bool _isInSelectProjection;
+    private ParameterExpression? _currentParameter;
 
     public static QueryAnalyzer Analyze(Expression expression)
     {
@@ -49,7 +56,16 @@ internal sealed class QueryAnalyzer
                 AnalyzeMemberAccess(member);
                 break;
             case LambdaExpression lambda:
-                AnalyzeExpression(lambda.Body);
+                var previousParameter = _currentParameter;
+                _currentParameter = lambda.Parameters.Count > 0 ? lambda.Parameters[0] : null;
+                try
+                {
+                    AnalyzeExpression(lambda.Body);
+                }
+                finally
+                {
+                    _currentParameter = previousParameter;
+                }
                 break;
             case InvocationExpression invocation:
                 AnalyzeExpression(invocation.Expression);
@@ -98,9 +114,11 @@ internal sealed class QueryAnalyzer
 
     private void AnalyzeSelectProjection(LambdaExpression lambda)
     {
-        // Initialize RequestedColumns when we find a SELECT - marks explicit column projection
-        RequestedColumns ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Initialize SelectedColumns when we find a SELECT - marks explicit column projection
+        SelectedColumns ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         
+        var previousParameter = _currentParameter;
+        _currentParameter = lambda.Parameters.Count > 0 ? lambda.Parameters[0] : null;
         _isInSelectProjection = true;
         try
         {
@@ -108,8 +126,7 @@ internal sealed class QueryAnalyzer
             {
                 case NewExpression newExpr:
                     foreach (var arg in newExpr.Arguments)
-                        if (arg is MemberExpression member)
-                            AnalyzeMemberAccess(member);
+                        AnalyzeExpression(arg);
                     break;
                 case MemberInitExpression initExpr:
                     foreach (var binding in initExpr.Bindings)
@@ -117,7 +134,7 @@ internal sealed class QueryAnalyzer
                             AnalyzeExpression(assignment.Expression);
                     break;
                 case MemberExpression member:
-                    AnalyzeMemberAccess(member);
+                    AnalyzeExpression(member);
                     break;
                 default:
                     AnalyzeExpression(lambda.Body);
@@ -127,6 +144,7 @@ internal sealed class QueryAnalyzer
         finally
         {
             _isInSelectProjection = false;
+            _currentParameter = previousParameter;
         }
     }
 
@@ -215,14 +233,14 @@ internal sealed class QueryAnalyzer
         bool isPropertyFirst;
 
         // Pattern: string.Compare(x.Property, "value") or string.Compare(x.Property, variable)
-        if (methodCall.Arguments[0] is MemberExpression leftMember && leftMember.Member is PropertyInfo)
+        if (methodCall.Arguments[0] is MemberExpression { Member: PropertyInfo } leftMember)
         {
             propertyName = leftMember.Member.Name;
             value = TryEvaluateExpression(methodCall.Arguments[1]);
             isPropertyFirst = true;
         }
         // Pattern: string.Compare("value", x.Property) or string.Compare(variable, x.Property)
-        else if (methodCall.Arguments[1] is MemberExpression rightMember && rightMember.Member is PropertyInfo)
+        else if (methodCall.Arguments[1] is MemberExpression { Member: PropertyInfo } rightMember)
         {
             propertyName = rightMember.Member.Name;
             value = TryEvaluateExpression(methodCall.Arguments[0]);
@@ -238,7 +256,7 @@ internal sealed class QueryAnalyzer
 
         // Evaluate the comparison value (should be 0 for string.Compare patterns)
         var compareToValue = TryEvaluateExpression(comparisonTarget);
-        if (compareToValue is not int compareToInt || compareToInt != 0)
+        if (compareToValue is not 0)
             return; // Only handle comparison to 0
 
         if (comparisonType != ExpressionType.NotEqual)
@@ -368,11 +386,22 @@ internal sealed class QueryAnalyzer
 
     private void AnalyzeMemberAccess(MemberExpression member)
     {
-        // Only add to RequestedColumns when explicitly inside a SELECT projection
-        if (_isInSelectProjection && member.Member is PropertyInfo property)
-            RequestedColumns?.Add(property.Name);
+        if (member.Member is PropertyInfo property
+            && _currentParameter != null
+            && ExpressionHelpers.IsParameterMember(member, _currentParameter)
+            && IsParquetColumnProperty(property))
+        {
+            AccessedColumns.Add(property.Name);
+            if (_isInSelectProjection)
+                SelectedColumns?.Add(property.Name);
+        }
 
         if (member.Expression != null)
             AnalyzeExpression(member.Expression);
+    }
+
+    private static bool IsParquetColumnProperty(PropertyInfo property)
+    {
+        return property.GetCustomAttribute<ParquetColumnAttribute>() != null;
     }
 }

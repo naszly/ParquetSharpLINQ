@@ -34,6 +34,34 @@ internal static class ParquetTypeResolver
         return descriptor.MaxRepetitionLevel > 0 || descriptor.MaxDefinitionLevel > 0;
     }
 
+    // Map of non-nullable CLR types to their nullable equivalents
+    private static readonly Dictionary<Type, Type> NullableTypeMap = new()
+    {
+        { typeof(bool), typeof(bool?) },
+        { typeof(sbyte), typeof(sbyte?) },
+        { typeof(byte), typeof(byte?) },
+        { typeof(short), typeof(short?) },
+        { typeof(ushort), typeof(ushort?) },
+        { typeof(int), typeof(int?) },
+        { typeof(uint), typeof(uint?) },
+        { typeof(long), typeof(long?) },
+        { typeof(ulong), typeof(ulong?) },
+        { typeof(float), typeof(float?) },
+        { typeof(double), typeof(double?) },
+        { typeof(decimal), typeof(decimal?) },
+        { typeof(Date), typeof(Date?) },
+        { typeof(DateTime), typeof(DateTime?) },
+        { typeof(DateOnly), typeof(DateOnly?) },
+        { typeof(TimeSpan), typeof(TimeSpan?) }
+    };
+
+    public static Type ToNullableType(Type type)
+    {
+        return Nullable.GetUnderlyingType(type) != null 
+            ? type 
+            : NullableTypeMap.GetValueOrDefault(type, type);
+    }
+
     private static Type ResolveIntType(IntLogicalType intType)
     {
         return intType.BitWidth switch
@@ -61,4 +89,3 @@ internal static class ParquetTypeResolver
         };
     }
 }
-

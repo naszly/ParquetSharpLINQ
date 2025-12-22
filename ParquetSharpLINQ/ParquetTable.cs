@@ -1,5 +1,6 @@
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
+using ParquetSharpLINQ.Mappers;
 using System.Collections;
 using System.Linq.Expressions;
 using ParquetSharpLINQ.Models;
@@ -43,15 +44,7 @@ public sealed class ParquetTable<T> : IOrderedQueryable<T>, IDisposable where T 
 
     private static IParquetMapper<T> ResolveMapper()
     {
-        var generatedMapperTypeName = $"{typeof(T).Namespace}.{typeof(T).Name}ParquetMapper";
-        var generatedMapperType = typeof(T).Assembly.GetType(generatedMapperTypeName);
-
-        if (generatedMapperType == null)
-            throw new InvalidOperationException(
-                $"No source-generated mapper found for type {typeof(T).FullName}. " +
-                $"Make sure the type has properties with [ParquetColumn] attributes and the project is built.");
-
-        return (IParquetMapper<T>)Activator.CreateInstance(generatedMapperType)!;
+        return ParquetMapperRegistry.Resolve<T>();
     }
 
     public Type ElementType => typeof(T);

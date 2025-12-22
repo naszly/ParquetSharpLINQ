@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 
 namespace ParquetSharpLINQ.Query;
 
@@ -17,8 +18,7 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
         ArgumentNullException.ThrowIfNull(expression);
 
         var elementType = GetElementType(expression.Type);
-        var queryableType = typeof(ParquetQueryable<>).MakeGenericType(elementType);
-        return (IQueryable)Activator.CreateInstance(queryableType, this, expression)!;
+        return new ParquetQueryableAdapter(this, expression, elementType);
     }
 
     public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
@@ -39,6 +39,13 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
 
         // Analyze the query to extract optimization hints
         var analysis = QueryAnalyzer.Analyze(expression);
+        IReadOnlyCollection<string>? columnsToRead = null;
+        if (analysis.SelectedColumns != null)
+        {
+            var union = new HashSet<string>(analysis.SelectedColumns, StringComparer.OrdinalIgnoreCase);
+            union.UnionWith(analysis.AccessedColumns);
+            columnsToRead = union;
+        }
 
         if (TryExecuteCountUsingIndex(expression, analysis, out TResult optimizedResult))
             return optimizedResult;
@@ -46,7 +53,7 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
         // Execute query using enumeration strategy with statistics-based pruning
         var sourceQueryable = _enumerationStrategy.Enumerate(
             analysis.Predicates.Count > 0 ? analysis.Predicates : null,
-            analysis.RequestedColumns,
+            columnsToRead,
             analysis.RangeFilters.Count > 0 ? analysis.RangeFilters : null
         ).AsQueryable();
 
@@ -56,17 +63,24 @@ internal sealed class ParquetQueryProvider<T> : IQueryProvider where T : new()
 
     private bool TryExecuteCountUsingIndex<TResult>(Expression expression, QueryAnalyzer analysis, out TResult result)
     {
-        result = default!;
-
         if (expression is not MethodCallExpression methodCall)
+        {
+            Unsafe.SkipInit(out result);
             return false;
+        }
 
         var isCount = methodCall.Method.Name is "Count" or "LongCount";
         if (!isCount)
+        {
+            Unsafe.SkipInit(out result);
             return false;
+        }
 
         if (!_enumerationStrategy.TryCountUsingIndex(analysis.Predicates, analysis.RangeFilters, out var count))
+        {
+            Unsafe.SkipInit(out result);
             return false;
+        }
 
         if (methodCall.Method.Name == "LongCount")
         {
@@ -127,6 +141,28 @@ internal sealed class ParquetQueryable<TElement> : IOrderedQueryable<TElement>
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+}
+
+internal sealed class ParquetQueryableAdapter : IOrderedQueryable
+{
+    public ParquetQueryableAdapter(IQueryProvider provider, Expression expression, Type elementType)
+    {
+        Provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        Expression = expression ?? throw new ArgumentNullException(nameof(expression));
+        ElementType = elementType ?? throw new ArgumentNullException(nameof(elementType));
+    }
+
+    public Type ElementType { get; }
+
+    public Expression Expression { get; }
+
+    public IQueryProvider Provider { get; }
+
+    public IEnumerator GetEnumerator()
+    {
+        var result = Provider.Execute<IEnumerable>(Expression);
+        return result.GetEnumerator();
     }
 }
 

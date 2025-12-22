@@ -1,7 +1,5 @@
-using System.Collections.Immutable;
 using System.Linq.Expressions;
 using System.Reflection;
-using ParquetSharpLINQ.Constants;
 using ParquetSharpLINQ.Mappers;
 using ParquetSharpLINQ.ParquetSharp;
 using ParquetSharpLINQ.Query;
@@ -16,18 +14,23 @@ internal static class RowPredicateBuilder<T> where T : new()
         if (predicates == null || predicates.Count == 0)
             return [];
 
-        var propertyToColumnMap = PropertyColumnMapper<T>.GetPropertyToColumnMap();
-        var partitionProperties = PropertyColumnMapper<T>.GetPartitionPropertyNames();
+        if (!ParquetMapperRegistry.TryGetMetadata(typeof(T), out var metadata) || metadata == null)
+        {
+            throw new InvalidOperationException(
+                $"No generated Parquet metadata found for type {typeof(T).FullName}. " +
+                "Ensure the type has [ParquetColumn] attributes and the project is built.");
+        }
+
+        var accessors = metadata.PropertyAccessors;
 
         return predicates
-            .Select(predicate => TryBuildRowPredicateEvaluator(predicate.Expression, propertyToColumnMap, partitionProperties))
+            .Select(predicate => TryBuildRowPredicateEvaluator(predicate.Expression, accessors))
             .OfType<Func<ParquetRow, bool>>().ToList();
     }
 
     private static Func<ParquetRow, bool>? TryBuildRowPredicateEvaluator(
         LambdaExpression expression,
-        IReadOnlyDictionary<string, string> propertyToColumnMap,
-        IImmutableSet<string> partitionProperties)
+        IReadOnlyDictionary<string, Delegate> accessors)
     {
         if (expression.Parameters.Count != 1)
             return null;
@@ -35,7 +38,7 @@ internal static class RowPredicateBuilder<T> where T : new()
         var rowParameter = Expression.Parameter(typeof(ParquetRow), "row");
         var entityParameter = expression.Parameters[0];
 
-        var rewritten = new RowPredicateRewriter(rowParameter, entityParameter, propertyToColumnMap, partitionProperties)
+        var rewritten = new RowPredicateRewriter(rowParameter, entityParameter, accessors)
             .Visit(expression.Body);
 
         if (rewritten.Type != typeof(bool))
@@ -46,50 +49,32 @@ internal static class RowPredicateBuilder<T> where T : new()
 
     private sealed class RowPredicateRewriter : ExpressionVisitor
     {
-        private static readonly MethodInfo GetRowValueMethod =
-            typeof(RowPredicateBuilder<T>)
-                .GetMethod(nameof(GetRowValue), BindingFlags.Static | BindingFlags.NonPublic)!;
-
         private readonly ParameterExpression _rowParameter;
         private readonly ParameterExpression _entityParameter;
-        private readonly IReadOnlyDictionary<string, string> _propertyToColumnMap;
-        private readonly IImmutableSet<string> _partitionProperties;
+        private readonly IReadOnlyDictionary<string, Delegate> _accessors;
 
         public RowPredicateRewriter(
             ParameterExpression rowParameter,
             ParameterExpression entityParameter,
-            IReadOnlyDictionary<string, string> propertyToColumnMap,
-            IImmutableSet<string> partitionProperties)
+            IReadOnlyDictionary<string, Delegate> accessors)
         {
             _rowParameter = rowParameter;
             _entityParameter = entityParameter;
-            _propertyToColumnMap = propertyToColumnMap;
-            _partitionProperties = partitionProperties;
+            _accessors = accessors;
         }
 
         protected override Expression VisitMember(MemberExpression node)
         {
             if (node.Member is PropertyInfo property && ExpressionHelpers.IsParameterMember(node, _entityParameter))
             {
-                var columnName = _propertyToColumnMap.TryGetValue(property.Name, out var mapped)
-                    ? mapped
-                    : property.Name;
-
-                if (_partitionProperties.Contains(property.Name))
-                    columnName = $"{PartitionConstants.PartitionPrefix}{columnName}";
-
-                var method = GetRowValueMethod.MakeGenericMethod(property.PropertyType);
-                return Expression.Call(method, _rowParameter, Expression.Constant(columnName));
+                if (_accessors.TryGetValue(property.Name, out var accessor))
+                {
+                    var accessorExpr = Expression.Constant(accessor, accessor.GetType());
+                    return Expression.Invoke(accessorExpr, _rowParameter);
+                }
             }
 
             return base.VisitMember(node);
         }
-    }
-
-    private static TValue GetRowValue<TValue>(ParquetRow row, string columnName)
-    {
-        return ParquetMapperHelpers.TryGetValue(row, columnName, out var raw)
-            ? ParquetMapperHelpers.ConvertValue<TValue>(raw)
-            : default!;
     }
 }

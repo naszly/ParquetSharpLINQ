@@ -13,5 +13,5 @@ public interface IParquetReader
         IEnumerable<string> columns,
         IReadOnlySet<int>? rowGroupsToRead = null);
 
-    IReadOnlyList<ImmutableArray<object?>> ReadColumnValuesByRowGroup(string filePath, string columnName);
+    IReadOnlyList<ImmutableArray<T>> ReadColumnValuesByRowGroup<T>(string filePath, string columnName);
 }

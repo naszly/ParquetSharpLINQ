@@ -15,14 +15,14 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
         _parquetReader = parquetReader ?? throw new ArgumentNullException(nameof(parquetReader));
     }
 
-    public IReadOnlyList<IndexedPredicateConstraint> BuildIndexedPredicateConstraints(
+    public IReadOnlyList<IIndexedPredicateConstraint> BuildIndexedPredicateConstraints(
         IReadOnlyCollection<QueryPredicate>? predicates,
         bool allowWarmup)
     {
         if (predicates == null || predicates.Count == 0)
             return [];
 
-        var constraints = new List<IndexedPredicateConstraint>();
+        var constraints = new List<IIndexedPredicateConstraint>();
         var warmupColumns = allowWarmup
             ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             : null;
@@ -50,7 +50,7 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
                 if (PropertyColumnMapper<T>.TryGetIndexedColumnDefinition(propertyName, out var definition) &&
                     definition != null)
                 {
-                    constraints.Add(new AlwaysMatchConstraint(definition));
+                    constraints.Add(definition.CreateAlwaysMatchConstraint());
                 }
             }
         }
@@ -60,7 +60,7 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
 
     public IReadOnlySet<int>? ResolveRowGroupsToRead(
         string filePath,
-        IReadOnlyList<IndexedPredicateConstraint> constraints)
+        IReadOnlyList<IIndexedPredicateConstraint> constraints)
     {
         if (constraints.Count == 0)
             return null;
@@ -86,7 +86,7 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
         return rowGroupsToRead;
     }
 
-    public IEnumerable<SortedValueArray> GetRowGroupValues(string filePath, IndexedColumnDefinition definition)
+    public IEnumerable<RowGroupValues> GetRowGroupValues(string filePath, IIndexedColumnDefinition definition)
     {
         var fileIndex = GetOrCreateRowGroupIndex(filePath, definition);
         return fileIndex.RowGroups.Values;
@@ -99,7 +99,7 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
 
     private HashSet<int> GetRowGroupsMatchingConstraint(
         string filePath,
-        IndexedPredicateConstraint constraint)
+        IIndexedPredicateConstraint constraint)
     {
         var definition = constraint.Definition;
         var fileIndex = GetOrCreateRowGroupIndex(filePath, definition);
@@ -114,41 +114,15 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
         return matches;
     }
 
-    private RowGroupIndex GetOrCreateRowGroupIndex(string filePath, IndexedColumnDefinition definition)
+    private RowGroupIndex GetOrCreateRowGroupIndex(string filePath, IIndexedColumnDefinition definition)
     {
         var columnIndex = _indexedColumnIndexStore.GetOrAddColumn(definition.ColumnName);
         return columnIndex.GetOrAddFile(filePath, () => BuildRowGroupIndex(filePath, definition));
     }
 
-    private RowGroupIndex BuildRowGroupIndex(string filePath, IndexedColumnDefinition definition)
+    private RowGroupIndex BuildRowGroupIndex(string filePath, IIndexedColumnDefinition definition)
     {
-        var rowGroupValues = _parquetReader.ReadColumnValuesByRowGroup(filePath, definition.ColumnName);
-        var rowGroups = new Dictionary<int, SortedValueArray>();
-
-        for (var rowGroupIndex = 0; rowGroupIndex < rowGroupValues.Count; rowGroupIndex++)
-        {
-            var converted = ConvertIndexValues(rowGroupValues[rowGroupIndex], definition);
-            rowGroups[rowGroupIndex] = new SortedValueArray(converted, definition.Comparer);
-        }
-
-        return new RowGroupIndex(rowGroups);
-    }
-
-    private static IEnumerable<object?> ConvertIndexValues(
-        IEnumerable<object?> rawValues,
-        IndexedColumnDefinition definition)
-    {
-        foreach (var raw in rawValues)
-        {
-            var converted = definition.Converter(raw);
-            if (converted == null && !definition.IsNullable)
-            {
-                throw new InvalidOperationException(
-                    $"Indexed column '{definition.ColumnName}' is null for non-nullable property '{definition.Property.Name}'.");
-            }
-
-            yield return converted;
-        }
+        return definition.BuildRowGroupIndex(_parquetReader, filePath);
     }
 
     private static void AddWarmupConstraints(
@@ -168,7 +142,7 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
     private static bool TryBuildIndexedConstraintsFromExpression(
         Expression expression,
         ParameterExpression parameter,
-        out IReadOnlyList<IndexedPredicateConstraint> constraints)
+        out IReadOnlyList<IIndexedPredicateConstraint> constraints)
     {
         if (expression is BinaryExpression { NodeType: ExpressionType.AndAlso } andAlso)
         {
@@ -194,7 +168,7 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
         return true;
     }
 
-    private static IndexedPredicateConstraint? TryBuildIndexedConstraint(
+    private static IIndexedPredicateConstraint? TryBuildIndexedConstraint(
         Expression expression,
         ParameterExpression parameter)
     {
@@ -206,7 +180,7 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
         };
     }
 
-    private static IndexedPredicateConstraint? TryBuildIndexedConstraintFromBinary(
+    private static IIndexedPredicateConstraint? TryBuildIndexedConstraintFromBinary(
         BinaryExpression binary,
         ParameterExpression parameter)
     {
@@ -225,34 +199,19 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
         return null;
     }
 
-    private static IndexedPredicateConstraint? BuildBinaryConstraint(
+    private static IIndexedPredicateConstraint? BuildBinaryConstraint(
         ExpressionType nodeType,
         MemberExpression property,
         Expression valueExpression)
     {
-        if (!TryEvaluateConstant(valueExpression, out var rawValue))
-            return null;
-
         if (!PropertyColumnMapper<T>.TryGetIndexedColumnDefinition(property.Member.Name, out var definition) ||
             definition == null)
             return null;
 
-        var converted = rawValue == null ? null : definition.Converter(rawValue);
-        if (converted == null && !definition.IsNullable)
-            return null;
-        return nodeType switch
-        {
-            ExpressionType.Equal => new EqualsConstraint(definition, converted),
-            ExpressionType.NotEqual => new NotEqualsConstraint(definition, converted),
-            ExpressionType.GreaterThan => new ComparisonConstraint(definition, converted, ComparisonKind.GreaterThan),
-            ExpressionType.GreaterThanOrEqual => new ComparisonConstraint(definition, converted, ComparisonKind.GreaterThanOrEqual),
-            ExpressionType.LessThan => new ComparisonConstraint(definition, converted, ComparisonKind.LessThan),
-            ExpressionType.LessThanOrEqual => new ComparisonConstraint(definition, converted, ComparisonKind.LessThanOrEqual),
-            _ => null
-        };
+        return definition.BuildBinaryConstraint(nodeType, valueExpression);
     }
 
-    private static IndexedPredicateConstraint? TryBuildIndexedConstraintFromMethod(
+    private static IIndexedPredicateConstraint? TryBuildIndexedConstraintFromMethod(
         MethodCallExpression methodCall,
         ParameterExpression parameter)
     {
@@ -307,40 +266,20 @@ internal sealed class IndexedPredicateEngine<T> where T : new()
 
     private static bool TryEvaluateConstant(Expression expression, out object? value)
     {
-        if (expression is ConstantExpression constant)
+        while (true)
         {
-            value = constant.Value;
-            return true;
-        }
-
-        if (expression is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } unary)
-            return TryEvaluateConstant(unary.Operand, out value);
-
-        if (ContainsParameterReference(expression))
-        {
-            value = null;
-            return false;
-        }
-
-        value = Expression.Lambda(expression).Compile().DynamicInvoke();
-        return true;
-    }
-
-    private static bool ContainsParameterReference(Expression expression)
-    {
-        var visitor = new ParameterDetectingVisitor();
-        visitor.Visit(expression);
-        return visitor.HasParameter;
-    }
-
-    private sealed class ParameterDetectingVisitor : ExpressionVisitor
-    {
-        public bool HasParameter { get; private set; }
-
-        protected override Expression VisitParameter(ParameterExpression node)
-        {
-            HasParameter = true;
-            return base.VisitParameter(node);
+            switch (expression)
+            {
+                case ConstantExpression constant:
+                    value = constant.Value;
+                    return true;
+                case UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } unary:
+                    expression = unary.Operand;
+                    continue;
+                default:
+                    value = null;
+                    return false;
+            }
         }
     }
 }

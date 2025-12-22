@@ -1,55 +1,45 @@
-using ParquetSharpLINQ.Interfaces;
-
 namespace ParquetSharpLINQ.Enumeration;
 
 internal static class ColumnResolver<T> where T : new()
 {
     public static IReadOnlyList<string> ResolveColumnsToRead(
-        IParquetMapper<T> mapper,
         IReadOnlyList<string> availableColumnNames,
-        IReadOnlyCollection<string>? requestedColumns)
+        IReadOnlyCollection<string>? columnsToRead)
     {
-        var baseColumns = mapper.RequiredColumns ?? availableColumnNames;
+        if (columnsToRead == null || columnsToRead.Count == 0)
+            return availableColumnNames;
 
-        var normalizedBase = baseColumns
+        var resolvedColumns = MapRequestedColumns(columnsToRead)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (requestedColumns != null && requestedColumns.Count > 0)
-        {
-            normalizedBase = FilterRequestedColumns(normalizedBase, requestedColumns);
-        }
+        if (resolvedColumns.Count == 0)
+            return [];
 
-        if (normalizedBase.Count == 0)
-        {
-            return availableColumnNames;
-        }
+        ValidateColumnsExist(resolvedColumns, availableColumnNames);
 
-        ValidateRequiredColumnsExist(normalizedBase, availableColumnNames);
-
-        return normalizedBase;
+        return resolvedColumns;
     }
 
-    private static List<string> FilterRequestedColumns(
-        List<string> baseColumns,
-        IReadOnlyCollection<string> requestedColumns)
+    private static HashSet<string> MapRequestedColumns(IReadOnlyCollection<string> requestedColumns)
     {
         var propertyToColumnMap = PropertyColumnMapper<T>.BuildPropertyToColumnMap();
+        var partitionPropertyNames = PropertyColumnMapper<T>.GetPartitionPropertyNames();
         var requestedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var propertyName in requestedColumns)
         {
+            if (partitionPropertyNames.Contains(propertyName))
+                continue;
             var columnName = propertyToColumnMap.GetValueOrDefault(propertyName, propertyName);
             requestedColumnNames.Add(columnName);
         }
 
-        return baseColumns
-            .Where(col => requestedColumnNames.Contains(col))
-            .ToList();
+        return requestedColumnNames;
     }
 
-    private static void ValidateRequiredColumnsExist(
+    private static void ValidateColumnsExist(
         List<string> requiredColumns,
         IReadOnlyList<string> availableColumnNames)
     {
@@ -65,4 +55,3 @@ internal static class ColumnResolver<T> where T : new()
         }
     }
 }
-

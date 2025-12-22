@@ -3,6 +3,7 @@ using ParquetSharp;
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.ParquetSharp;
+using static ParquetSharpLINQ.Tests.Helpers.ParquetRowFactory;
 
 namespace ParquetSharpLINQ.Tests.Unit.Query;
 
@@ -76,32 +77,56 @@ public class QueryOptimizationTests
                 filePath.Contains(Path.DirectorySeparatorChar + "region=us"))
                 return new List<ParquetRow>
                 {
-                    new(["id", "name", "amount", "count", "is_active", "created_date"],
-                        [1L, "Alice_2023_us", 100m, 10, true, new DateTime(2023, 1, 1)])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Alice_2023_us"),
+                        Column("amount", 100m),
+                        Column("count", 10),
+                        Column("is_active", true),
+                        Column("created_date", new DateTime(2023, 1, 1))
+                    )
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2023") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=eu"))
                 return new List<ParquetRow>
                 {
-                    new(["id", "name", "amount", "count", "is_active", "created_date"],
-                        [2L, "Bob_2023_eu", 200m, 20, true, new DateTime(2023, 1, 1)])
+                    Create(
+                        Column("id", 2L),
+                        Column("name", "Bob_2023_eu"),
+                        Column("amount", 200m),
+                        Column("count", 20),
+                        Column("is_active", true),
+                        Column("created_date", new DateTime(2023, 1, 1))
+                    )
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2024") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=us"))
                 return new List<ParquetRow>
                 {
-                    new(["id", "name", "amount", "count", "is_active", "created_date"],
-                        [3L, "Charlie_2024_us", 300m, 30, true, new DateTime(2024, 1, 1)])
+                    Create(
+                        Column("id", 3L),
+                        Column("name", "Charlie_2024_us"),
+                        Column("amount", 300m),
+                        Column("count", 30),
+                        Column("is_active", true),
+                        Column("created_date", new DateTime(2024, 1, 1))
+                    )
                 };
 
             if (filePath.Contains(Path.DirectorySeparatorChar + "year=2024") &&
                 filePath.Contains(Path.DirectorySeparatorChar + "region=eu"))
                 return new List<ParquetRow>
                 {
-                    new(["id", "name", "amount", "count", "is_active", "created_date"],
-                        [4L, "David_2024_eu", 400m, 40, true, new DateTime(2024, 1, 1)])
+                    Create(
+                        Column("id", 4L),
+                        Column("name", "David_2024_eu"),
+                        Column("amount", 400m),
+                        Column("count", 40),
+                        Column("is_active", true),
+                        Column("created_date", new DateTime(2024, 1, 1))
+                    )
                 };
 
             return new List<ParquetRow>();
@@ -168,7 +193,10 @@ public class QueryOptimizationTests
                 requestedColumns = callInfo.Arg<IEnumerable<string>>();
                 return new List<ParquetRow>
                 {
-                    new(["id", "name"], [1L, "Test"])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Test")
+                    )
                 };
             });
 
@@ -200,7 +228,10 @@ public class QueryOptimizationTests
                 requestedColumns = callInfo.Arg<IEnumerable<string>>();
                 return new List<ParquetRow>
                 {
-                    new(["id", "amount"], [1L, 100m])
+                    Create(
+                        Column("id", 1L),
+                        Column("amount", 100m)
+                    )
                 };
             });
 
@@ -262,8 +293,14 @@ public class QueryOptimizationTests
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(
                 new List<ParquetRow>
                 {
-                    new(["id", "name", "amount", "count", "is_active", "created_date"],
-                        [1L, "Test", 100m, 10, true, new DateTime(2024, 1, 1)])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Test"),
+                        Column("amount", 100m),
+                        Column("count", 10),
+                        Column("is_active", true),
+                        Column("created_date", new DateTime(2024, 1, 1))
+                    )
                 });
 
             var table = new ParquetTable<TestEntity>(new FileSystemPartitionDiscovery(testPath), mockReader);
@@ -311,7 +348,10 @@ public class QueryOptimizationTests
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(
                 new List<ParquetRow>
                 {
-                    new(["id", "name"], [1L, "Test"])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Test")
+                    )
                 });
 
             var table = new ParquetTable<TestEntityWithDateTimePartition>(new FileSystemPartitionDiscovery(testPath), mockReader);
@@ -359,7 +399,10 @@ public class QueryOptimizationTests
             mockReader.ReadRows(Arg.Any<string>(), Arg.Any<IEnumerable<string>>()).Returns(
                 new List<ParquetRow>
                 {
-                    new(["id", "name"], [1L, "Test"])
+                    Create(
+                        Column("id", 1L),
+                        Column("name", "Test")
+                    )
                 });
 
             var table = new ParquetTable<TestEntityWithDateOnlyPartition>(new FileSystemPartitionDiscovery(testPath), mockReader);

@@ -62,7 +62,7 @@ public abstract class TrackingParquetReaderBase : IParquetReader
         return _innerReader.ReadRows(filePath, columnList, rowGroupsToRead);
     }
 
-    public IReadOnlyList<ImmutableArray<object?>> ReadColumnValuesByRowGroup(string filePath, string columnName)
+    public IReadOnlyList<ImmutableArray<T>> ReadColumnValuesByRowGroup<T>(string filePath, string columnName)
     {
         lock (_lock)
         {
@@ -82,6 +82,6 @@ public abstract class TrackingParquetReaderBase : IParquetReader
                 : 1;
         }
 
-        return _innerReader.ReadColumnValuesByRowGroup(filePath, columnName);
+        return _innerReader.ReadColumnValuesByRowGroup<T>(filePath, columnName);
     }
 }

@@ -39,11 +39,11 @@ public class ParquetSharpReader : IParquetReader
         }
     }
 
-    public IReadOnlyList<ImmutableArray<object?>> ReadColumnValuesByRowGroup(string filePath, string columnName)
+    public IReadOnlyList<ImmutableArray<T>> ReadColumnValuesByRowGroup<T>(string filePath, string columnName)
     {
         ValidateFilePath(filePath);
         using var stream = File.OpenRead(filePath);
-        return ParquetStreamReader.ReadColumnValuesByRowGroupFromStream(stream, columnName);
+        return ParquetStreamReader.ReadColumnValuesByRowGroupFromStream<T>(stream, columnName);
     }
 
     private static void ValidateDirectory(string directory)

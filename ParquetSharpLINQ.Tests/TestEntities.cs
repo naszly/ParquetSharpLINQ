@@ -43,10 +43,10 @@ public class GeneratedTestEntity
 /// </summary>
 public class TestEntityWithRequired
 {
-    [ParquetColumn("id", ThrowOnMissingOrNull = true)]
+    [ParquetColumn("id")]
     public long Id { get; set; }
 
-    [ParquetColumn("name", ThrowOnMissingOrNull = true)]
+    [ParquetColumn("name")]
     public string Name { get; set; } = string.Empty;
 
     [ParquetColumn("optional")] public string? Optional { get; set; }

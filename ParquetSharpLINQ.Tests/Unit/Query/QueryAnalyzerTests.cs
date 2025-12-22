@@ -38,16 +38,16 @@ public class QueryAnalyzerTests
     }
 
     [Test]
-    public void Analyze_WithSelectProjection_ExtractsRequestedColumns()
+    public void Analyze_WithSelectProjection_ExtractsSelectedColumns()
     {
         var table = CreateMockTable();
         var query = table.Select(e => new { e.Id, e.Name });
 
         var analysis = QueryAnalyzer.Analyze(query.Expression);
 
-        Assert.That(analysis.RequestedColumns, Does.Contain("Id"));
-        Assert.That(analysis.RequestedColumns, Does.Contain("Name"));
-        Assert.That(analysis.RequestedColumns, Has.Count.EqualTo(2));
+        Assert.That(analysis.SelectedColumns, Does.Contain("Id"));
+        Assert.That(analysis.SelectedColumns, Does.Contain("Name"));
+        Assert.That(analysis.SelectedColumns, Has.Count.EqualTo(2));
     }
 
     [Test]
@@ -63,8 +63,8 @@ public class QueryAnalyzerTests
         Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
         Assert.That(analysis.RangeFilters, Does.ContainKey("Year"));
 
-        Assert.That(analysis.RequestedColumns, Does.Contain("Id"));
-        Assert.That(analysis.RequestedColumns, Does.Contain("Amount"));
+        Assert.That(analysis.SelectedColumns, Does.Contain("Id"));
+        Assert.That(analysis.SelectedColumns, Does.Contain("Amount"));
     }
 
     [Test]
@@ -75,9 +75,9 @@ public class QueryAnalyzerTests
 
         var analysis = QueryAnalyzer.Analyze(query.Expression);
 
-        // RequestedColumns should be null when there's no SELECT projection
-        Assert.That(analysis.RequestedColumns, Is.Null, 
-            "RequestedColumns should be null when there's no SELECT projection");
+        // SelectedColumns should be null when there's no SELECT projection
+        Assert.That(analysis.SelectedColumns, Is.Null, 
+            "SelectedColumns should be null when there's no SELECT projection");
         Assert.That(analysis.Predicates, Has.Count.EqualTo(1));
         Assert.That(analysis.RangeFilters, Does.ContainKey("Amount"));
     }

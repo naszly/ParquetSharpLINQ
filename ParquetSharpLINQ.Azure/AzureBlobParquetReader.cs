@@ -6,10 +6,6 @@ using ParquetSharpLINQ.ParquetSharp;
 
 namespace ParquetSharpLINQ.Azure;
 
-#if !NET9_0_OR_GREATER
-using Lock = System.Object;
-#endif
-
 /// <summary>
 /// Parquet reader that downloads files from Azure Blob Storage to a local temp directory.
 /// Uses file-based caching with LRU eviction for performance optimization.
@@ -51,10 +47,10 @@ public sealed class AzureBlobParquetReader : IParquetReader
         }
     }
 
-    public IReadOnlyList<ImmutableArray<object?>> ReadColumnValuesByRowGroup(string filePath, string columnName)
+    public IReadOnlyList<ImmutableArray<T>> ReadColumnValuesByRowGroup<T>(string filePath, string columnName)
     {
         using var stream = OpenStream(filePath);
-        return ParquetStreamReader.ReadColumnValuesByRowGroupFromStream(stream, columnName);
+        return ParquetStreamReader.ReadColumnValuesByRowGroupFromStream<T>(stream, columnName);
     }
     
     private Stream? OpenStream(string blobPath)

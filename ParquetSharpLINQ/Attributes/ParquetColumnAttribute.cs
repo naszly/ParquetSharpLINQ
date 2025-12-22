@@ -23,10 +23,11 @@ public sealed class ParquetColumnAttribute : Attribute
     public bool IsPartition { get; set; }
 
     /// <summary>
-    /// When true, the generated mapper will throw if the column is missing or the value is null for a non-nullable property.
-    /// Default: false (use default(TProp)).
+    /// When true, missing columns are allowed and default(TProp) is used.
+    /// Only honored for nullable properties.
+    /// Default: false (missing columns throw).
     /// </summary>
-    public bool ThrowOnMissingOrNull { get; set; } = false;
+    public bool AllowMissing { get; set; } = false;
 
     /// <summary>
     /// When true, the column can be cached/indexed for predicate optimization.

@@ -14,7 +14,7 @@ public class RegistryAndAttributeTests
 
         Assert.That(attr.Name, Is.Null);
         Assert.That(attr.IsPartition, Is.False);
-        Assert.That(attr.ThrowOnMissingOrNull, Is.False);
+        Assert.That(attr.AllowMissing, Is.False);
     }
 
     [Test]
@@ -32,11 +32,11 @@ public class RegistryAndAttributeTests
         {
             Name = "test",
             IsPartition = true,
-            ThrowOnMissingOrNull = true
+            AllowMissing = true
         };
 
         Assert.That(attr.Name, Is.EqualTo("test"));
         Assert.That(attr.IsPartition, Is.True);
-        Assert.That(attr.ThrowOnMissingOrNull, Is.True);
+        Assert.That(attr.AllowMissing, Is.True);
     }
 }
