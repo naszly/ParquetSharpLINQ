@@ -92,29 +92,6 @@ using var table = ParquetTable<SalesRecord>.Factory.FromAzureBlob(
 var results = table.Where(s => s.Year == 2024).ToList();
 ```
 
-## Performance
-
-Benchmark results with 180 partitions (900K records):
-
-| Query | Partitions Read | Speedup |
-|-------|----------------|---------|
-| Full scan | 180/180 | 1.0x |
-| `region='eu-west'` | 36/180 | ~5x |
-| `year=2024 AND region='eu-west'` | 12/180 | ~15x |
-
-Throughput: ~200K records/sec (60K records in ~300ms)
-
-Indexed column benchmarks:
-
-| Method                                   | Mean         | Error       | StdDev     | Gen0         | Gen1        | Allocated     |
-|----------------------------------------- |-------------:|------------:|-----------:|-------------:|------------:|--------------:|
-| 'Indexed column count'                   |     8.295 ms |   0.7685 ms |  0.1996 ms |      15.6250 |           - |     105.08 KB |
-| 'Non-indexed column count'               | 5,744.484 ms | 123.5699 ms | 32.0907 ms | 1542000.0000 | 841000.0000 |  7992138.3 KB |
-| 'Indexed column filter'                  |   333.455 ms |   4.6755 ms |  1.2142 ms |   69500.0000 |  34000.0000 |  385004.82 KB |
-| 'Non-indexed column filter'              | 5,713.755 ms |  24.9120 ms |  6.4696 ms | 1545000.0000 | 865000.0000 | 7992645.34 KB |
-| 'Indexed column filter + projection'     |   222.114 ms |   9.5543 ms |  1.4785 ms |   54000.0000 |  17333.3333 |  238107.39 KB |
-| 'Non-indexed column filter + projection' | 3,356.356 ms | 129.0821 ms | 33.5222 ms | 1069000.0000 | 103000.0000 | 4454680.27 KB |
-
 ## Directory Structure
 
 Hive-style partitioning:
@@ -154,7 +131,7 @@ All LINQ methods with predicates support automatic partition pruning:
 
 ### Column Projection
 
-Only requested columns are read:
+Only requested columns are read. When there is no `Select` projection, only mapped entity columns are read (partition columns are enriched from directory metadata, not read from Parquet files):
 
 ```csharp
 var summary = table
@@ -183,6 +160,18 @@ Notes:
 - Indexing uses values read per row group and an in-memory cache per column/file.
 - `ComparerType` is optional; if omitted, the property type must implement `IComparable` or `IComparable<T>`.
 - Currently optimized constraints: equality, inequality, range comparisons, and `string.StartsWith` with `StringComparison.Ordinal`.
+
+### AllowMissing
+
+Use `AllowMissing` to permit missing columns (nullable properties only):
+
+```csharp
+public class SalesRecord
+{
+    [ParquetColumn("optional_note", AllowMissing = true)]
+    public string? OptionalNote { get; set; }
+}
+```
 
 ### Automatic Type Conversion
 
@@ -226,6 +215,27 @@ dotnet test --filter "Category=Integration"
 ```
 
 See [ParquetSharpLINQ.Tests/README.md](ParquetSharpLINQ.Tests/README.md) for details.
+
+## Performance
+
+Benchmark results with 180 partitions (900K records):
+
+| Query | Partitions Read | Speedup |
+|-------|----------------|---------|
+| Full scan | 180/180 | 1.0x |
+| `region='eu-west'` | 36/180 | ~5x |
+| `year=2024 AND region='eu-west'` | 12/180 | ~15x |
+
+Indexed column benchmarks (180 partitions, 540 parquet files, 5,400,000 records):
+
+| Method | Mean | Error | StdDev | Allocated |
+|--------|-----:|------:|-------:|----------:|
+| Indexed<br>`.Count(r => r.ClientId.StartsWith("46"))` | 7.035 ms | 0.1072 ms | 0.0166 ms | 105.62 KB |
+| Non Indexed<br>`.Count(r => r.ClientId.StartsWith("46"))` | 5,938.280 ms | 1,191.0275 ms | 309.3061 ms | 6,973,873.87 KB |
+| Indexed<br>`.Where(r => r.ClientId.StartsWith("46"))`<br>`.ToList()` | 343.405 ms | 8.3807 ms | 2.1765 ms | 352,443.88 KB |
+| Non Indexed<br>`.Where(r => r.ClientId.StartsWith("46"))`<br>`.ToList()` | 6,274.230 ms | 1,088.8686 ms | 168.5036 ms | 6,974,388.8 KB |
+| Indexed<br>`.Where(r => r.ClientId.StartsWith("46"))`<br>`.Select(r => r.ProductName)`<br>`.ToList()` | 254.965 ms | 11.1857 ms | 2.9049 ms | 250,093.02 KB |
+| Non Indexed<br>`.Where(r => r.ClientId.StartsWith("46"))`<br>`.Select(r => r.ProductName)`<br>`.ToList()` | 3,902.831 ms | 499.7335 ms | 129.7792 ms | 4,668,789.84 KB |
 
 ## Benchmarks
 
