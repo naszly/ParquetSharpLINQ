@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
 using ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Buffers;
 
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.Reader;
 
 /// <summary>
 /// Handles reading column data from Parquet files and converting to immutable arrays.
@@ -13,10 +14,10 @@ internal static class ParquetColumnReader
     /// </summary>
     public static ImmutableArray<T> ReadColumn<T>(
         RowGroupReader rowGroupReader,
-        ParquetColumnMapper.ColumnHandle handle,
+        ParquetColumnResolver.ColumnReference reference,
         int numRows)
     {
-        using var columnReader = rowGroupReader.Column(handle.Index);
+        using var columnReader = rowGroupReader.Column(reference.Index);
         if (numRows == 0)
             return ImmutableArray<T>.Empty;
 
@@ -25,12 +26,12 @@ internal static class ParquetColumnReader
     }
 
     // A small generic helper that builds the factory which reads and wraps the column values
-    private static Func<RowGroupReader, ParquetColumnMapper.ColumnHandle, int, IColumnBuffer> CreateFactory<T>()
+    private static Func<RowGroupReader, ParquetColumnResolver.ColumnReference, int, IColumnBuffer> CreateFactory<T>()
         => (rowGroupReader, handle, numRows) => new ColumnBuffer<T>(ReadColumn<T>(rowGroupReader, handle, numRows));
 
     // Centralized mapping from CLR type to a factory that produces the appropriate IColumnBuffer
-    private static readonly IReadOnlyDictionary<Type, Func<RowGroupReader, ParquetColumnMapper.ColumnHandle, int, IColumnBuffer>> ColumnBufferFactories
-        = new Dictionary<Type, Func<RowGroupReader, ParquetColumnMapper.ColumnHandle, int, IColumnBuffer>>
+    private static readonly IReadOnlyDictionary<Type, Func<RowGroupReader, ParquetColumnResolver.ColumnReference, int, IColumnBuffer>> ColumnBufferFactories
+        = new Dictionary<Type, Func<RowGroupReader, ParquetColumnResolver.ColumnReference, int, IColumnBuffer>>
     {
         { typeof(bool), CreateFactory<bool>() },
         { typeof(bool?), CreateFactory<bool?>() },
@@ -70,12 +71,12 @@ internal static class ParquetColumnReader
 
     public static IColumnBuffer ReadColumnBuffer(
         RowGroupReader rowGroupReader,
-        ParquetColumnMapper.ColumnHandle handle,
+        ParquetColumnResolver.ColumnReference reference,
         int numRows,
         Type targetType)
     {
         return ColumnBufferFactories.TryGetValue(targetType, out var factory) 
-            ? factory(rowGroupReader, handle, numRows) 
+            ? factory(rowGroupReader, reference, numRows) 
             : throw new NotSupportedException($"Reading type {targetType.FullName} is not supported.");
     }
 }

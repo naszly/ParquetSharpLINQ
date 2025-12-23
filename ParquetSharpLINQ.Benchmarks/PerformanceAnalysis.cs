@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using ParquetSharpLINQ;
 using ParquetSharpLINQ.Discovery;
 
 namespace ParquetSharpLINQ.Benchmarks;

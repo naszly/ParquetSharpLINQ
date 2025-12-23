@@ -1,4 +1,6 @@
-namespace ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Buffers.Converter;
+
+namespace ParquetSharpLINQ.ParquetSharp.Buffers;
 
 internal sealed class ConstantColumnBuffer<T>(T value) : IColumnBuffer
 {

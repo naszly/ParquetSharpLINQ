@@ -1,6 +1,6 @@
 using ParquetSharp;
 
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
 /// <summary>
 /// Resolves CLR types from Parquet column descriptors.

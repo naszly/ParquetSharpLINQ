@@ -1,4 +1,6 @@
-namespace ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Buffers;
+
+namespace ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
 public readonly struct ParquetRow
 {

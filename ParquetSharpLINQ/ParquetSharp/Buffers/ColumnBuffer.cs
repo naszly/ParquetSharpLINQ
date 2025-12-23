@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
+using ParquetSharpLINQ.ParquetSharp.Buffers.Converter;
 
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.Buffers;
 
 internal sealed class ColumnBuffer<T>(ImmutableArray<T> values) : IColumnBuffer
 {

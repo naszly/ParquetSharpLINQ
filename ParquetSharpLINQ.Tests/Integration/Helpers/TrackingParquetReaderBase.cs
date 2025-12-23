@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using ParquetSharp;
 using ParquetSharpLINQ.Interfaces;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
 namespace ParquetSharpLINQ.Tests.Integration.Helpers;
 

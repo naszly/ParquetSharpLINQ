@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
 using ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.Reader;
 
 /// <summary>
 /// Provides static helper methods for reading Parquet data from streams.
@@ -37,7 +38,7 @@ public static class ParquetStreamReader
     /// <summary>
     /// Reads rows from a stream with optional column filtering.
     /// </summary>
-    public static IEnumerable<ParquetRow> ReadRowsFromStream(
+    public static IEnumerable<ParquetRow.ParquetRow> ReadRowsFromStream(
         Stream? stream,
         IEnumerable<string> columns,
         IReadOnlySet<int>? rowGroupsToRead = null)
@@ -52,7 +53,7 @@ public static class ParquetStreamReader
         var schema = reader.FileMetaData.Schema ??
                      throw new InvalidOperationException("Unable to read Parquet schema.");
 
-        var columnsToRead = ParquetColumnMapper.GetRequestedColumns(columns, schema).ToArray();
+        var columnsToRead = ParquetColumnResolver.ResolveRequestedColumns(columns, schema).ToArray();
 
         var numRowGroups = reader.FileMetaData.NumRowGroups;
         for (var rowGroupIndex = 0; rowGroupIndex < numRowGroups; rowGroupIndex++)
@@ -81,7 +82,7 @@ public static class ParquetStreamReader
         var schema = reader.FileMetaData.Schema ??
                      throw new InvalidOperationException("Unable to read Parquet schema.");
 
-        var handles = ParquetColumnMapper.GetRequestedColumns(new[] { columnName }, schema);
+        var handles = ParquetColumnResolver.ResolveRequestedColumns(new[] { columnName }, schema);
         if (handles.Count == 0)
         {
             throw new InvalidOperationException($"Column '{columnName}' not found in Parquet schema.");

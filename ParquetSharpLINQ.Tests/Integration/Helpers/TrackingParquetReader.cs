@@ -1,4 +1,4 @@
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Reader;
 
 namespace ParquetSharpLINQ.Tests.Integration.Helpers;
 

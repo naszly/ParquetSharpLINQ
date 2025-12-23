@@ -269,12 +269,12 @@ public class ParquetMapperGenerator : IIncrementalGenerator
 
     private static void GenerateMapMethod(StringBuilder sb, string className, List<PropertyInfo> properties)
     {
-        sb.AppendLine($"        public {className} Map(ParquetSharpLINQ.ParquetSharp.ParquetRow row)");
+        sb.AppendLine($"        public {className} Map(ParquetSharpLINQ.ParquetSharp.ParquetRow.ParquetRow row)");
         sb.AppendLine("        {");
         sb.AppendLine("            return Map(row, null);");
         sb.AppendLine("        }");
         sb.AppendLine();
-        sb.AppendLine($"        public {className} Map(ParquetSharpLINQ.ParquetSharp.ParquetRow row, IReadOnlyCollection<string>? requestedColumns)");
+        sb.AppendLine($"        public {className} Map(ParquetSharpLINQ.ParquetSharp.ParquetRow.ParquetRow row, IReadOnlyCollection<string>? requestedColumns)");
         sb.AppendLine("        {");
         sb.AppendLine($"            var instance = new {className}();");
         sb.AppendLine();
@@ -406,7 +406,7 @@ public class ParquetMapperGenerator : IIncrementalGenerator
             var disallowNullValue = !prop.IsNullable && !prop.IsValueType;
             var requireNonNull = !prop.AllowMissing;
             var canReturnDefault = !requireNonNull && (prop.IsNullable || prop.IsValueType);
-            sb.AppendLine($"                [\"{prop.PropertyName}\"] = new Func<ParquetRow, {prop.TypeName}>(row =>");
+            sb.AppendLine($"                [\"{prop.PropertyName}\"] = new Func<ParquetSharpLINQ.ParquetSharp.ParquetRow.ParquetRow, {prop.TypeName}>(row =>");
             sb.AppendLine("                {");
             sb.AppendLine(
                 $"                    if (ParquetMapperHelpers.TryGetValue<{prop.TypeName}>(row, \"{key}\", out var value))");

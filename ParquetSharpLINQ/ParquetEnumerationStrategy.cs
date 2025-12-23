@@ -6,7 +6,7 @@ using ParquetSharpLINQ.Enumeration;
 using ParquetSharpLINQ.Enumeration.Indexing;
 using ParquetSharpLINQ.Interfaces;
 using ParquetSharpLINQ.Models;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 using ParquetSharpLINQ.Query;
 
 namespace ParquetSharpLINQ;

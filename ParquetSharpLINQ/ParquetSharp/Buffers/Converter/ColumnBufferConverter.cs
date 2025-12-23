@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using ParquetSharp;
 
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.Buffers.Converter;
 
 internal static class ColumnBufferConverter
 {

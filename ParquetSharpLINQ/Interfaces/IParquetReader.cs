@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 using ParquetSharp;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
 namespace ParquetSharpLINQ.Interfaces;
 

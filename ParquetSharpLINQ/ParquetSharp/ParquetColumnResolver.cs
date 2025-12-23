@@ -5,18 +5,18 @@ namespace ParquetSharpLINQ.ParquetSharp;
 /// <summary>
 /// Handles mapping between column names and Parquet schema descriptors.
 /// </summary>
-internal static class ParquetColumnMapper
+internal static class ParquetColumnResolver
 {
     private static readonly StringComparer ColumnNameComparer = StringComparer.OrdinalIgnoreCase;
 
     /// <summary>
     /// Maps requested column names to their corresponding Parquet schema descriptors.
     /// </summary>
-    public static List<ColumnHandle> GetRequestedColumns(
+    public static List<ColumnReference> ResolveRequestedColumns(
         IEnumerable<string> requestedColumns,
         SchemaDescriptor schema)
     {
-        List<ColumnHandle> mappings;
+        List<ColumnReference> mappings;
 
         var columns = requestedColumns as string[] ?? requestedColumns.ToArray();
         
@@ -30,17 +30,17 @@ internal static class ParquetColumnMapper
 
                 if (columns.Contains(columnName, ColumnNameComparer))
                 {
-                    mappings.Add(new ColumnHandle(i, columnDescriptor));
+                    mappings.Add(new ColumnReference(i, columnDescriptor));
                 }
             }
         }
         else
         {
-            mappings = new List<ColumnHandle>(schema.NumColumns);
+            mappings = new List<ColumnReference>(schema.NumColumns);
             for (var i = 0; i < schema.NumColumns; i++)
             {
                 var columnDescriptor = schema.Column(i);
-                mappings.Add(new ColumnHandle(i, columnDescriptor));
+                mappings.Add(new ColumnReference(i, columnDescriptor));
             }
         }
         
@@ -50,6 +50,6 @@ internal static class ParquetColumnMapper
     /// <summary>
     /// Represents a handle to a column with its index and descriptor.
     /// </summary>
-    public record ColumnHandle(int Index, ColumnDescriptor Descriptor);
+    public record ColumnReference(int Index, ColumnDescriptor Descriptor);
 }
 

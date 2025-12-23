@@ -2,7 +2,8 @@ using System.Collections.Immutable;
 using Azure.Storage.Blobs;
 using ParquetSharp;
 using ParquetSharpLINQ.Interfaces;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
+using ParquetSharpLINQ.ParquetSharp.Reader;
 
 namespace ParquetSharpLINQ.Azure;
 

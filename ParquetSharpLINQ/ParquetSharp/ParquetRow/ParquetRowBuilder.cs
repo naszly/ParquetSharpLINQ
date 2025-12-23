@@ -1,6 +1,8 @@
 using ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Buffers;
+using ParquetSharpLINQ.ParquetSharp.Reader;
 
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
 /// <summary>
 /// Handles building rows from Parquet row groups.
@@ -13,7 +15,7 @@ internal static class ParquetRowBuilder
     public static IEnumerable<ParquetRow> ReadRowGroup(
         ParquetFileReader reader,
         int rowGroupIndex,
-        ParquetColumnMapper.ColumnHandle[] columnsToRead)
+        ParquetColumnResolver.ColumnReference[] columnsToRead)
     {
         using var rowGroupReader = reader.RowGroup(rowGroupIndex);
         var numRows = checked((int)rowGroupReader.MetaData.NumRows);
@@ -38,7 +40,7 @@ internal static class ParquetRowBuilder
     /// </summary>
     private static IColumnBuffer[] ReadAllColumns(
         RowGroupReader rowGroupReader,
-        ParquetColumnMapper.ColumnHandle[] columnHandles,
+        ParquetColumnResolver.ColumnReference[] columnHandles,
         int numRows)
     {
         var buffers = new IColumnBuffer[columnHandles.Length];

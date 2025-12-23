@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using ParquetSharp;
 using ParquetSharpLINQ.Interfaces;
 
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.Reader;
 
 /// <summary>
 /// File-based Parquet reader implementation.
@@ -26,7 +26,7 @@ public class ParquetSharpReader : IParquetReader
         }
     }
 
-    public IEnumerable<ParquetRow> ReadRows(
+    public IEnumerable<ParquetRow.ParquetRow> ReadRows(
         string filePath,
         IEnumerable<string> columns,
         IReadOnlySet<int>? rowGroupsToRead)

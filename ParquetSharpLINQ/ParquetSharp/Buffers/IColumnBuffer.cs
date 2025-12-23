@@ -1,4 +1,4 @@
-namespace ParquetSharpLINQ.ParquetSharp;
+namespace ParquetSharpLINQ.ParquetSharp.Buffers;
 
 internal interface IColumnBuffer
 {

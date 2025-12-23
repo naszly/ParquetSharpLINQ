@@ -1,6 +1,6 @@
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Reader;
 
 namespace ParquetSharpLINQ;
 

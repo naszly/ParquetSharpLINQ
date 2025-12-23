@@ -1,6 +1,6 @@
 using ParquetSharp;
 using ParquetSharpLINQ.Discovery;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Reader;
 
 namespace ParquetSharpLINQ.Tests.Unit.PartitionDiscovery;
 

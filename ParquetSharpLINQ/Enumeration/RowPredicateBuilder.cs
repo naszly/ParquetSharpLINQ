@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using ParquetSharpLINQ.Mappers;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 using ParquetSharpLINQ.Query;
 
 namespace ParquetSharpLINQ.Enumeration;

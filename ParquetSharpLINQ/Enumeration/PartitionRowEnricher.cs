@@ -1,6 +1,7 @@
 using ParquetSharpLINQ.Constants;
 using ParquetSharpLINQ.Models;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.Buffers;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
 namespace ParquetSharpLINQ.Enumeration;
 

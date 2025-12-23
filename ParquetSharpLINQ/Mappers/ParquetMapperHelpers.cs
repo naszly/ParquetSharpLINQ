@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 
 namespace ParquetSharpLINQ.Mappers;
 

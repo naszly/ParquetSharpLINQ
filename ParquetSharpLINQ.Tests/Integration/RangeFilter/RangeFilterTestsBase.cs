@@ -1,6 +1,4 @@
-using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
-using ParquetSharpLINQ.Interfaces;
 
 namespace ParquetSharpLINQ.Tests.Integration.RangeFilter;
 

@@ -3,7 +3,7 @@ using ParquetSharp;
 using ParquetSharpLINQ.Attributes;
 using ParquetSharpLINQ.Discovery;
 using ParquetSharpLINQ.Interfaces;
-using ParquetSharpLINQ.ParquetSharp;
+using ParquetSharpLINQ.ParquetSharp.ParquetRow;
 using static ParquetSharpLINQ.Tests.Helpers.ParquetRowFactory;
 
 namespace ParquetSharpLINQ.Tests.Unit.Query;
