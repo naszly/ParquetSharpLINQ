@@ -6,12 +6,12 @@ namespace ParquetSharpLINQ.Tests.Unit.DataReading
     [TestFixture]
     [Category("Unit")]
     [Category("DataReading")]
-    public class ColumnBufferConverterTests
+    public class ColumnValueConverterTests
     {
         // Helper to invoke the generic Convert<TSource,TTarget> method via reflection.
         private static object? InvokeConvert(object? source, Type sourceType, Type targetType)
         {
-            var converterType = typeof(ParquetSharp.Buffers.Converter.ColumnBufferConverter);
+            var converterType = typeof(Common.Converter.ColumnValueConverter);
             var method = converterType.GetMethod("Convert", BindingFlags.Public | BindingFlags.Static);
             if (method is null) throw new InvalidOperationException("Convert method not found");
 
@@ -49,6 +49,14 @@ namespace ParquetSharpLINQ.Tests.Unit.DataReading
             }
 
             Assert.That(actual, Is.EqualTo(expected));
+        }
+
+        // Simple enum used only for these tests
+        private enum TestColor
+        {
+            Red,
+            Green,
+            Blue
         }
 
         public static IEnumerable SuccessfulConversions
@@ -167,6 +175,9 @@ namespace ParquetSharpLINQ.Tests.Unit.DataReading
                 yield return new TestCaseData(guid.ToString(), typeof(string), typeof(Guid), guid).SetName("string->Guid");
                 yield return new TestCaseData("hello", typeof(string), typeof(string), "hello").SetName("string->string");
 
+                yield return new TestCaseData("Green", typeof(string), typeof(TestColor), TestColor.Green).SetName("string->TestColor_Green");
+                yield return new TestCaseData("green", typeof(string), typeof(TestColor), TestColor.Green).SetName("string->TestColor_green");
+
                 var someDate = new DateTime(2021, 6, 1, 0, 0, 0, DateTimeKind.Utc);
                 var parquetDate = new global::ParquetSharp.Date(someDate);
                 yield return new TestCaseData(parquetDate, typeof(global::ParquetSharp.Date), typeof(global::ParquetSharp.Date), parquetDate).SetName("parquetDate->parquetDate");
@@ -208,6 +219,10 @@ namespace ParquetSharpLINQ.Tests.Unit.DataReading
                 yield return new TestCaseData("25:00", typeof(string), typeof(TimeOnly), typeof(FormatException)).SetName("stringBadTime->TimeOnly_fail");
                 yield return new TestCaseData("2020-02-30", typeof(string), typeof(DateOnly), typeof(FormatException)).SetName("stringBadDate->DateOnly_fail");
 
+                yield return new TestCaseData(null, typeof(string), typeof(TestColor), typeof(InvalidOperationException)).SetName("nullString->TestColor_fail");
+                yield return new TestCaseData("", typeof(string), typeof(TestColor), typeof(ArgumentException)).SetName("emptyString->TestColor_fail");
+                yield return new TestCaseData("   ", typeof(string), typeof(TestColor), typeof(ArgumentException)).SetName("whitespaceString->TestColor_fail");
+
                 yield return new TestCaseData("256", typeof(string), typeof(byte), typeof(OverflowException)).SetName("stringOverflow->byte_fail");
                 yield return new TestCaseData((decimal)1.23m, typeof(decimal), typeof(float), typeof(InvalidOperationException)).SetName("decimal->float_fail");
                 yield return new TestCaseData((double)1.23, typeof(double), typeof(float), typeof(InvalidOperationException)).SetName("double->float_fail");
@@ -226,6 +241,8 @@ namespace ParquetSharpLINQ.Tests.Unit.DataReading
                 yield return new TestCaseData(null, typeof(object), typeof(DateTime), typeof(InvalidOperationException)).SetName("null->DateTime_fail");
                 yield return new TestCaseData(null, typeof(object), typeof(Guid), typeof(InvalidOperationException)).SetName("null->Guid_fail");
                 yield return new TestCaseData(null, typeof(string), typeof(string), typeof(InvalidOperationException)).SetName("null->string_fail");
+
+                yield return new TestCaseData("Yellow", typeof(string), typeof(TestColor), typeof(ArgumentException)).SetName("string->TestColor_invalid_fail");
             }
         }
 

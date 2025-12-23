@@ -1,14 +1,66 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 
-namespace ParquetSharpLINQ.ParquetSharp.Buffers.Converter;
+namespace ParquetSharpLINQ.Common.Converter;
 
 public static class ColumnValueConverter
 {
     private static CultureInfo InvariantCulture => CultureInfo.InvariantCulture;
     private static DateTimeStyles DateTimeStyles => DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
 
-    public static bool TryConvertFromInt64<TTarget>(long source, out TTarget? value)
+    public static TTarget Convert<TSource, TTarget>(TSource source)
+    {
+        if (source is null && Nullable.GetUnderlyingType(typeof(TTarget)) != null)
+        {
+            return default!; // null is valid for TTarget
+        }
+
+        if (TryConvertValue(source, out TTarget? value) && value is not null)
+        {
+            return value;
+        }
+
+        throw new InvalidOperationException($"Cannot convert value {source} from {typeof(TSource)} to {typeof(TTarget)}.");
+    }
+    
+    public static TTarget ConvertFromString<TTarget>(string source)
+    {
+        if (TryConvertFromString(source, out TTarget? value) && value is not null)
+        {
+            return value;
+        }
+
+        throw new InvalidOperationException($"Cannot convert value {source} from string to {typeof(TTarget)}.");
+    }
+
+    private static bool TryConvertValue<TSource, TTarget>(TSource source, out TTarget? value)
+    {
+        switch (source)
+        {
+            case bool b: return TryConvertFromBoolean(b, out value);
+            case byte by: return TryConvertFromByte(by, out value);
+            case sbyte sb: return TryConvertFromSByte(sb, out value);
+            case short s: return TryConvertFromInt16(s, out value);
+            case ushort us: return TryConvertFromUInt16(us, out value);
+            case int i: return TryConvertFromInt32(i, out value);
+            case uint ui: return TryConvertFromUInt32(ui, out value);
+            case long l: return TryConvertFromInt64(l, out value);
+            case ulong ul: return TryConvertFromUInt64(ul, out value);
+            case decimal dec: return TryConvertFromDecimal(dec, out value);
+            case double dbl: return TryConvertFromDouble(dbl, out value);
+            case float f: return TryConvertFromSingle(f, out value);
+            case string str: return TryConvertFromString(str, out value);
+            case global::ParquetSharp.Date dtParquet: return TryConvertFromParquetDate(dtParquet, out value);
+            case DateTime dt: return TryConvertFromDateTime(dt, out value);
+            case DateOnly dateOnly: return TryConvertFromDateOnly(dateOnly, out value);
+            case TimeSpan timeSpan: return TryConvertFromTimeSpan(timeSpan, out value);
+            default:
+                Unsafe.SkipInit(out value);
+                return false;
+        }
+    }
+    
+    private static bool TryConvertFromInt64<TTarget>(long source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -25,7 +77,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromUInt64<TTarget>(ulong source, out TTarget? value)
+    private static bool TryConvertFromUInt64<TTarget>(ulong source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -42,7 +94,7 @@ public static class ColumnValueConverter
         return false;
     }
 
-    public static bool TryConvertFromInt32<TTarget>(int source, out TTarget? value)
+    private static bool TryConvertFromInt32<TTarget>(int source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -61,7 +113,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromUInt32<TTarget>(uint source, out TTarget? value)
+    private static bool TryConvertFromUInt32<TTarget>(uint source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -80,7 +132,7 @@ public static class ColumnValueConverter
         return false;
     }
 
-    public static bool TryConvertFromInt16<TTarget>(short source, out TTarget? value)
+    private static bool TryConvertFromInt16<TTarget>(short source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -101,7 +153,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromUInt16<TTarget>(ushort source, out TTarget? value)
+    private static bool TryConvertFromUInt16<TTarget>(ushort source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -122,7 +174,7 @@ public static class ColumnValueConverter
         return false;
     }
 
-    public static bool TryConvertFromByte<TTarget>(byte source, out TTarget? value)
+    private static bool TryConvertFromByte<TTarget>(byte source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
         
@@ -151,7 +203,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromSByte<TTarget>(sbyte source, out TTarget? value)
+    private static bool TryConvertFromSByte<TTarget>(sbyte source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -174,7 +226,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromBoolean<TTarget>(bool source, out TTarget? value)
+    private static bool TryConvertFromBoolean<TTarget>(bool source, out TTarget? value)
         {
             var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
     
@@ -185,7 +237,7 @@ public static class ColumnValueConverter
             return false;
         }
 
-    public static bool TryConvertFromDecimal<TTarget>(decimal source, out TTarget? value)
+    private static bool TryConvertFromDecimal<TTarget>(decimal source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -198,7 +250,7 @@ public static class ColumnValueConverter
         return false;
     }
 
-    public static bool TryConvertFromDouble<TTarget>(double source, out TTarget? value)
+    private static bool TryConvertFromDouble<TTarget>(double source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -211,7 +263,7 @@ public static class ColumnValueConverter
         return false;
     }
 
-    public static bool TryConvertFromSingle<TTarget>(float source, out TTarget? value)
+    private static bool TryConvertFromSingle<TTarget>(float source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -226,7 +278,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromString<TTarget>(string source, out TTarget? value)
+    private static bool TryConvertFromString<TTarget>(string source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -261,12 +313,14 @@ public static class ColumnValueConverter
             value = Unsafe.As<string, TTarget>(ref source);
             return true;
         }
+        if (targetType.IsEnum)
+            return CastParsed(s => Enum.Parse(targetType, s, ignoreCase: true), source, out value);
 
         Unsafe.SkipInit(out value);
         return false;
     }
 
-    public static bool TryConvertFromParquetDate<TTarget>(global::ParquetSharp.Date date, out TTarget? value)
+    private static bool TryConvertFromParquetDate<TTarget>(global::ParquetSharp.Date date, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -281,7 +335,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromDateTime<TTarget>(DateTime source, out TTarget? value)
+    private static bool TryConvertFromDateTime<TTarget>(DateTime source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -296,7 +350,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromTimeSpan<TTarget>(TimeSpan source, out TTarget? value)
+    private static bool TryConvertFromTimeSpan<TTarget>(TimeSpan source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
@@ -307,7 +361,7 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromDateOnly<TTarget>(DateOnly source, out TTarget? value)
+    private static bool TryConvertFromDateOnly<TTarget>(DateOnly source, out TTarget? value)
     {
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
