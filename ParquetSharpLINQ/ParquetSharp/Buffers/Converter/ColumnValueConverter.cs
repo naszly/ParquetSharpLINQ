@@ -226,20 +226,8 @@ public static class ColumnValueConverter
         return false;
     }
     
-    public static bool TryConvertFromString<TTarget>(string? source, out TTarget? value)
+    public static bool TryConvertFromString<TTarget>(string source, out TTarget? value)
     {
-        if (source is null)
-        {
-            if (TargetAllowsNull<TTarget>())
-            {
-                value = default; // null
-                return true;
-            }
-
-            Unsafe.SkipInit(out value);
-            return false;
-        }
-
         var targetType = Nullable.GetUnderlyingType(typeof(TTarget)) ?? typeof(TTarget);
 
         if (targetType == typeof(byte))
@@ -332,12 +320,6 @@ public static class ColumnValueConverter
 
         Unsafe.SkipInit(out value);
         return false;
-    }
-    private static bool TargetAllowsNull<TTarget>()
-    {
-        var targetType = typeof(TTarget);
-        var isNullable = Nullable.GetUnderlyingType(targetType) != null;
-        return isNullable;
     }
 
     private static bool CastParsed<TSource, TParsed, TTarget>(
