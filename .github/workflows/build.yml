@@ -30,8 +30,27 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutput=./TestResults/ \
-          /p:CoverletOutputFormat=json
-    
+          /p:CoverletOutputFormat=\"json,opencover\"
+
+    - name: Install ReportGenerator
+      run: |
+        dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.1.23
+        echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+    - name: Generate HTML coverage report
+      run: |
+        reportgenerator \
+          -reports:"**/TestResults/**/coverage*.xml" \
+          -targetdir:"TestResults/CoverageReport" \
+          -reporttypes:Html
+
+    - name: Upload coverage HTML
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html
+        path: TestResults/CoverageReport
+        retention-days: 1
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -40,7 +59,7 @@ jobs:
           **/bin/Release/**
           **/obj/Release/**
         retention-days: 1
-    
+
     - name: Upload test results
       uses: actions/upload-artifact@v4
       with:
@@ -48,4 +67,6 @@ jobs:
         path: |
           **/TestResults/**/*.trx
           **/TestResults/**/coverage*.json
+          **/TestResults/**/coverage*.xml
+          **/TestResults/CoverageReport/**
         retention-days: 1
