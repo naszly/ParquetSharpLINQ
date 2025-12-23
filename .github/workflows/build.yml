@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build, Test and Integration
 
 on:
   push:
@@ -7,31 +7,66 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
-    
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Delta Lake dependencies
+      run: pip install pandas pyarrow deltalake
+
+    - name: Setup Node.js (for Azurite)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install and start Azurite
+      run: |
+        npm install -g azurite
+        azurite --silent --location /tmp/azurite --debug /tmp/azurite/debug.log &
+        sleep 5
+
+    - name: Generate Delta Lake test data
+      run: python3 ParquetSharpLINQ.Tests/Integration/Delta/generate_delta_test_data.py
+
     - name: Restore dependencies
       run: dotnet restore
-    
+
     - name: Build
       run: dotnet build --configuration Release --no-restore
-    
-    - name: Run unit tests and collect coverage
+
+    - name: Run unit tests (with coverage)
       run: |
         dotnet test --configuration Release --no-build --filter "Category=Unit" --verbosity normal \
-          --logger "trx;LogFileName=test-results.trx" \
+          --logger "trx;LogFileName=test-results-unit.trx" \
           /p:CollectCoverage=true \
-          /p:CoverletOutput=./TestResults/ \
-          /p:CoverletOutputFormat=\"json,opencover\" \
+          /p:CoverletOutput=./TestResults/coverage-unit. \
+          /p:CoverletOutputFormat=\"opencover,json\" \
           /p:Exclude=\"[ParquetSharpLINQ.Benchmarks]*,[ParquetSharpLINQ.DataGenerator]*\"
+
+    - name: Run integration tests (with coverage)
+      run: |
+        dotnet test --configuration Release --no-build --filter "Category=Integration" --verbosity normal \
+          --logger "trx;LogFileName=test-results-integration.trx" \
+          /p:CollectCoverage=true \
+          /p:CoverletOutput=./TestResults/coverage-integration. \
+          /p:CoverletOutputFormat=\"opencover,json\" \
+          /p:Exclude=\"[ParquetSharpLINQ.Benchmarks]*,[ParquetSharpLINQ.DataGenerator]*\"
+
+    - name: Stop Azurite
+      if: always()
+      run: pkill -f azurite || true
 
     - name: Install ReportGenerator
       run: |
@@ -56,7 +91,7 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         files: "./TestResults/**/coverage*.json,./TestResults/**/coverage*.xml"
-        flags: unit
+        flags: combined
         fail_ci_if_error: true
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
