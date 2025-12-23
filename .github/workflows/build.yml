@@ -31,7 +31,7 @@ jobs:
           /p:CollectCoverage=true \
           /p:CoverletOutput=./TestResults/ \
           /p:CoverletOutputFormat=\"json,opencover\" \
-          /p:Exclude='[ParquetSharpLINQ.Benchmarks]*,[ParquetSharpLINQ.DataGenerator]*'
+          /p:Exclude=\"[ParquetSharpLINQ.Benchmarks]*,[ParquetSharpLINQ.DataGenerator]*\"
 
     - name: Install ReportGenerator
       run: |
