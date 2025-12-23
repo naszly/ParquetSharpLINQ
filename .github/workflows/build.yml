@@ -24,8 +24,13 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release --no-restore
     
-    - name: Run unit tests
-      run: dotnet test --configuration Release --no-build --filter "Category=Unit" --verbosity normal
+    - name: Run unit tests and collect coverage
+      run: |
+        dotnet test --configuration Release --no-build --filter "Category=Unit" --verbosity normal \
+          --logger "trx;LogFileName=test-results.trx" \
+          /p:CollectCoverage=true \
+          /p:CoverletOutput=./TestResults/ \
+          /p:CoverletOutputFormat=json
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -35,4 +40,12 @@ jobs:
           **/bin/Release/**
           **/obj/Release/**
         retention-days: 1
-
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: |
+          **/TestResults/**/*.trx
+          **/TestResults/**/coverage*.json
+        retention-days: 1
