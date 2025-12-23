@@ -3,7 +3,7 @@
 [![NuGet](https://img.shields.io/nuget/v/ParquetSharpLINQ.svg)](https://www.nuget.org/packages/ParquetSharpLINQ)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/ParquetSharpLINQ.svg)](https://www.nuget.org/packages/ParquetSharpLINQ)
 [![Build](https://github.com/naszly/ParquetSharpLINQ/actions/workflows/build.yml/badge.svg)](https://github.com/naszly/ParquetSharpLINQ/actions/workflows/build.yml)
-[![Integration Tests](https://github.com/naszly/ParquetSharpLINQ/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/naszly/ParquetSharpLINQ/actions/workflows/integration-tests.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/naszly/ParquetSharpLINQ/main?logo=codecov)](https://codecov.io/gh/naszly/ParquetSharpLINQ)
 [![License](https://img.shields.io/github/license/naszly/ParquetSharpLINQ.svg)](LICENSE)
 ![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-blue)
 
