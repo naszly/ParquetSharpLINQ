@@ -30,7 +30,8 @@ jobs:
           --logger "trx;LogFileName=test-results.trx" \
           /p:CollectCoverage=true \
           /p:CoverletOutput=./TestResults/ \
-          /p:CoverletOutputFormat=\"json,opencover\"
+          /p:CoverletOutputFormat=\"json,opencover\" \
+          /p:Exclude='[ParquetSharpLINQ.Benchmarks]*'
 
     - name: Install ReportGenerator
       run: |
