@@ -52,6 +52,15 @@ jobs:
         path: TestResults/CoverageReport
         retention-days: 1
 
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: "./TestResults/**/coverage*.json,./TestResults/**/coverage*.xml"
+        flags: unit
+        fail_ci_if_error: true
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
